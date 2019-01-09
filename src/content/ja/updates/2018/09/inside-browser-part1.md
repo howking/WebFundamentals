@@ -1,6 +1,6 @@
 project_path: /web/_project.yaml
 book_path: /web/updates/_book.yaml
-description: Learn how browser turn your code into functional website from high-level architecture to the specifics of the rendering pipeline.
+description: 上位アーキテクチャからレンダリングパイプラインの詳細に至るまで、ブラウザがどのようにしてコードを機能的なWebサイトに変えるかを学びます。
 
 {# wf_published_on: 2018-09-05 #}
 {# wf_updated_on: 2019-01-09 #}
