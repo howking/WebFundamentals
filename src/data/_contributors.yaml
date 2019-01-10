@@ -1486,6 +1486,19 @@ alexshalamov:
   description:
     en: Alex is an Engineer at Intel
 
+howking:
+  name:
+    given: Junji
+    family: Shiokawa
+  org:
+    name: fork
+  country: JP
+  role:
+    - translator
+  github: howking
+  description:
+    en: Emacen
+
 glenshires:
   name:
     given: Glen
