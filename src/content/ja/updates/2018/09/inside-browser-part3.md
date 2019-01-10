@@ -1,11 +1,11 @@
 project_path: /web/_project.yaml
 book_path: /web/updates/_book.yaml
-description: Inner workings of a browser rendering engine
+description: ブラウザレンダリングエンジンの内部動作
 
 {# wf_published_on: 2018-09-20 #}
-{# wf_updated_on: 2019-01-09 #}
+{# wf_updated_on: 2019-01-11 #}
 {# wf_featured_image: /web/updates/images/inside-browser/cover.png #}
-{# wf_featured_snippet: Once the browser receives page data, what happens inside of the renderer process to display a page? #}
+{# wf_featured_snippet: ブラウザがページデータを受信したら、レンダラプロセス内でページを表示するために何が起こりますか？ #}
 {# wf_blink_components: N/A #}
 
 <style>
@@ -14,296 +14,310 @@ description: Inner workings of a browser rendering engine
   }
 </style>
 
-# Inside look at modern web browser (part 3) {: .page-title }
+# モダンブラウザの内部を見る(パート3) {: .page-title }
 
 {% include "web/_shared/contributors/kosamari.html" %}
 
-## Inner workings of a Renderer Process
+## レンダラープロセスの内部動作
 
-This is part 3 of 4 part blog series looking at how browsers work. Previously, we covered 
-[multi-process architecture](/web/updates/2018/09/inside-browser-part1) and 
-[navigation flow](/web/updates/2018/09/inside-browser-part2). In this post, we are going to look at 
-what happens inside of the renderer process.
+この記事は、ブラウザがどのように動作しているのかを見ていく計4回のブログ連載の3回
+目です。前の記事では、「[マルチプロセスアーキテク
+チャ](/web/updates/2018/09/inside-browser-part1)」と「[ナビゲーションフ
+ロー](/web/updates/2018/09/inside-browser-part2)」について説明しました。今回は、
+レンダラープロセスの内部で何が起こるのかを見ていきます。
 
-Renderer process touches many aspects of web performance. Since there is a lot happening inside of 
-the renderer process, this post is only a general overview. If you'd like to dig deeper, 
-[the Performance section of Web Fundamentals](/web/fundamentals/performance/why-performance-matters/) 
-has many more resources.
+レンダラープロセスはWebパフォーマンスのさまざまな側面に影響を与えます。 レンダラー
+プロセスの内部では多くのことが行われているため、この投稿は一般的な概要にすぎませ
+ん。 さらに詳しく知りたい場合は、[Web Fundamentalsのパフォーマン
+ス](/web/fundamentals/performance/why-performance-matters/)にさらに多くのリソー
+スがあります。
 
+## レンダラープロセスにおけるWebコンテンツの処理
 
-## Renderer processes handle web contents
+レンダラープロセスは、タブの内部で発生するすべてのことを担当します。
+レンダラープロセスでは、メインスレッドがユーザに送信するコードの大部分を処理します。
+Webワーカーまたはサービスワーカーを使用している場合、JavaScriptの一部がワーカースレッド
+によって処理されることがあります。Compositorスレッドとラスタースレッドもレンダラー
+プロセス内で実行され、ページを効率的かつ円滑にレンダリングします。
 
-The renderer process is responsible for everything that happens inside of a tab. 
-In a renderer process, the main thread handles most of the code you send to the user. 
-Sometimes parts of your JavaScript is handled by worker threads if you use a web worker or a 
-service worker. Compositor and raster threads are also run inside of a renderer processes to render 
-a page efficiently and smoothly. 
-
-The renderer process's core job is to turn HTML, CSS, and JavaScript into a web page that the user 
-can interact with.
+レンダラープロセスの中心的な仕事は、HTML、CSS、およびJavaScriptをユーザーが対話
+できるWebページに変えることです。
 
 <figure>
-  <img src="/web/updates/images/inside-browser/part3/renderer.png" alt="Renderer process">
+  <img src="/web/updates/images/inside-browser/part3/renderer.png" alt="レンダラープロセス">
   <figcaption>
-    Figure 1: Renderer process with a main thread, worker threads, a compositor thread, and a 
-    raster thread inside
+    図1: メインスレッド、ワーカースレッド、コンポジタースレッド、ラスタースレッドを内部に持つレンダラープロセス
   </figcaption>
 </figure>
 
-## Parsing
+## パース(構文解析)
 
-### Construction of a DOM
+### DOMの構造
 
-When the renderer process receives a commit message for a navigation and starts to receive HTML 
-data, the main thread begins to parse the text string (HTML) and turn it into a **D**ocument 
-**O**bject **M**odel (**DOM**).
+レンダラープロセスがナビゲーションのコミットメッセージを受信して​​HTMLデータを受信
+し始めると、メインスレッドはテキスト文字列（HTML）の解析を開始して**D**ocument
+**O**bject **M**odel (**DOM**)に変換します。
 
-The DOM is a browser's internal representation of the page as well as the data structure and API 
-that web developer can interact with via JavaScript.
+DOMとは、Web開発者がJavaScriptを介して対話できるデータ構造およびAPIと同様に、ブ
+ラウザにおけるページの内部表現です。
 
-Parsing an HTML document into a DOM is defined by the 
-[HTML Standard](https://html.spec.whatwg.org/). You may have noticed that feeding HTML to a browser 
-never throws an error. For example, missing closing `</p>` tag is a valid HTML.  Erroneous markup 
-like `Hi! <b>I'm <i>Chrome</b>!</i>` (b tag is closed before i tag) is treated as if you wrote 
-`Hi! <b>I'm <i>Chrome</i></b><i>!</i>`. This is because the HTML specification is designed to 
-handle those errors gracefully.  If you are curious how these things are done, you can read on 
-"[An introduction to error handling and strange cases in the parser](https://html.spec.whatwg.org/multipage/parsing.html#an-introduction-to-error-handling-and-strange-cases-in-the-parser)" 
-section of the HTML spec.
+HTMLドキュメントをDOMに解析することは、 [HTML標準](https://html.spec.whatwg.org/)に
+よって定義されています。ブラウザにどんなHTMLを入力してもエラーが発生しないことに
+気付いたかもしれません。例えば、終了タグ</p>がなくても有効なHTMLです。`Hi!
+<b>I'm <i>Chrome</b>!</i>`のような誤ったマークアップ(bタグがiタグの間で閉じられ
+ています)は、あたかも`Hi! <b>I'm <i>Chrome</i></b><i>!</i>`と書いたように扱われ
+ます。
+これは、HTML仕様がこれらのエラーを適切に処理するように設計されているためで
+す。これらのことがどうやって行われるのか知りたいのであれば、HTML仕様書の「[エラー
+処理とパーサーの奇妙なケースの紹介](https://html.spec.whatwg.org/multipage/parsing.html#an-introduction-to-error-handling-and-strange-cases-in-the-parser)
+」を読んでください。
 
-### Subresource loading
+### サブリソースのロード
 
-A website usually uses external resources like images, CSS, and JavaScript. Those files need to be 
-loaded from network or cache. The main thread _could_ request them one by one as they find them 
-while parsing to build a DOM, but in order to speed up, "preload scanner" is run concurrently. 
-If there are things like `<img>` or `<link>` in the HTML document, preload scanner peeks at tokens 
-generated by HTML parser and sends requests to the network thread in the browser process.
+Webサイトは通常、画像、CSS、およびJavaScriptなどの外部リソースを使用します。 こ
+れらのファイルはネットワークまたはキャッシュからロードする必要があります。メイン
+スレッドはDOMを構築するためにパースしながらそれらを見つけると _一つずつそれらを
+要求することもできます_ が、高速化するために "preload scanner"が同時に実行されま
+す。
+HTML文書に `<img>`や `<link>`のようなものがある場合、スキャナーはHTMLパーサー
+によって生成されたトークンをチェックして、ブラウザプロセスのネットワークスレッド
+にリクエストを送信します。
 
 <figure>
   <img src="/web/updates/images/inside-browser/part3/dom.png" alt="DOM">
   <figcaption>
-    Figure 2: The main thread parsing HTML and building a DOM tree
+    図2: HTMLを解析してDOMツリーを構築するメインスレッド
   </figcaption>
 </figure>
 
-### JavaScript can block the parsing 
+### JavaScriptが解析をブロックする可能性がある
 
-When the HTML parser finds a `<script>` tag, it pauses the parsing of the HTML document and has to 
-load, parse, and execute the JavaScript code. Why? because JavaScript can change the shape of the 
-document using things like `document.write()` which changes the entire DOM structure ([overview 
-of the parsing model](https://html.spec.whatwg.org/multipage/parsing.html#overview-of-the-parsing-model) 
-in the HTML spec has a nice diagram). This is why the HTML parser has to wait for JavaScript to 
-run before it can resume parsing of the HTML document. If you are curious about what happens in 
-JavaScript execution, [the V8 team has talks and blog posts on this](https://mathiasbynens.be/notes/shapes-ics). 
+HTMLパーサーが `<script>`タグを見つけると、HTMLドキュメントの解析を一時停止し、
+JavaScriptコードをロード、解析、および実行する必要があります。なぜなら、
+JavaScriptはDOM構造全体を変更する `document.write()`のような関数でドキュメントを
+変更することができるためです（HTML仕様の [解析モデルの概要](https://html.spec.whatwg.org/multipage/parsing.html#overview-of-the-parsing-model)
+は良い図が載っています）。 よってHTMLパーサーは、HTMLドキュメントの解析を再開す
+る前にJavaScriptの実行を待たなければなりません。JavaScriptの実行で何が起きるのか
+知りたい場合は、[V8チームがこれに関するトークとブログを行っています](https://mathiasbynens.be/notes/shapes-ics)。
 
-## Hint to browser how you want to load resources
+## ブラウザにどのようにリソースをロードしてほしいのか伝える
 
-There are many ways web developers can send hints to the browser in order to load resources nicely. 
-If your JavaScript does not use `document.write()`, you can add [`async`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script#attr-async) or [`defer`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script#attr-defer) attribute to the `<script>` tag. The browser then loads and runs the JavaScript code asynchronously and does not block the parsing. You may also use [JavaScript module](/web/fundamentals/primers/modules) if that's suitable. `<link rel="preload">` is a way to inform browser that the resource is definitely needed for current navigation and you would like to download as soon as possible. You are read more on this at [Resource Prioritization – Getting the Browser to Help You](/web/fundamentals/performance/resource-prioritization).
+Web開発者がリソースをうまくロードするためにヒントをブラウザにあたえる方法はたく
+さんあります。JavaScriptが `document.write()`を使用していない場合は、
+`<script>`タグに `async`属性または `defer`属性を追加できます。ブラウザは
+JavaScriptコードを非同期にロードして実行し、解析をブロックしません。適宜、
+[JavaScriptモジュール](/web/fundamentals/primers/modules)を使うこともできます。
+`<link rel="preload">`は、現在のナビゲーションにリソースが確実に必要であることや
+できるだけ早くダウンロードしたいことをブラウザに通知する方法です。この詳細につい
+ては、[リソースの優先順位付け - ブラウザによる支
+援](/web/fundamentals/performance/resource-prioritization)を参照してください。
 
-## Style calculation
+## スタイルの計算
 
-Having a DOM is not enough to know what the page would look like because we can style page elements 
-in CSS. The main thread parses CSS and determines the computed style for each DOM node. This is 
-information about what kind of style is applied to each element based on CSS selectors. You can see 
-this information in the `computed` section of DevTools.
+CSSを使ってページ要素をスタイルすることができるので、DOMを持つだけではページがど
+のように見えるかを知るには不十分です。メインスレッドはCSSを解析し、各DOMノードに
+計算されたスタイル(computed style)を持ちます。これは、CSSセレクターに基づいて各
+要素にどのようなスタイルが適用されるかについての情報です。この情報はDevToolsの
+`calculate`セクションで見ることができます。
 
 <figure>
-  <img src="/web/updates/images/inside-browser/part3/computedstyle.png" alt="computed style">
+  <img src="/web/updates/images/inside-browser/part3/computedstyle.png" alt="計算されたスタイル">
   <figcaption>
-    Figure 3: The main thread parsing CSS to add computed style
+    図3: CSSを解析して計算スタイルを追加するメインスレッド
   </figcaption>
 </figure>
 
-Even if you do not provide any CSS, each DOM node has a computed style. `<h1>` tag is displayed 
-bigger than `<h2>` tag and margins are defined for each element. This is because the browser has a 
-default style sheet. If you want to know what Chrome's default CSS is like, 
-[you can see the source code here](https://cs.chromium.org/chromium/src/third_party/blink/renderer/core/css/html.css).
+CSSを提供しなくても、各DOMノードは計算されたスタイル(computed style)を持ちます。
+`<h1>`タグは `<h2>`タグより大きく表示され、余白は各要素に対して定義されます。こ
+れは、ブラウザにデフォルトのスタイルシートがあるためです。 Chromeの既定のCSSがど
+のようなものかを知りたい場合は、[ここでソースコードを見ることができます](https://cs.chromium.org/chromium/src/third_party/blink/renderer/core/css/html.css)
+。
 
-## Layout
+## レイアウト
 
-Now the renderer process knows the structure of a document and styles for each nodes, but that is 
-not enough to render a page. Imagine you are trying to describe a painting to your friend over a 
-phone. "There is a big red circle and a small blue square" is not enough information for your 
-friend to know what exactly the painting would look like. 
+これで、レンダラープロセスはドキュメントの構造と各ノードのスタイルを認識しますが、
+それだけではページをレンダリングするのに十分ではありません。あなたが電話であなた
+の友人に絵を描こうとしていると想像してください。「大きな赤い丸と小さな青い四角が
+あります」とは、あなたの友人が絵が正確にどのように見えるかを知るのに十分な情報に
+はなりません。
 
 <figure class="attempt-right">
-  <img src="/web/updates/images/inside-browser/part3/tellgame.png" alt="game of human fax machine">
+  <img src="/web/updates/images/inside-browser/part3/tellgame.png" alt="ファックスになってみるゲーム">
   <figcaption>
-    Figure 4: A person standing in front of a painting, phone line connected to the other person
+    図4: 絵の前に立っている人、他の人につながる電話線
   </figcaption>
 </figure>
 
-The layout is a process to find the geometry of elements. The main thread walks through the DOM and 
-computed styles and creates the layout tree which has information like x y coordinates and bounding 
-box sizes. Layout tree may be similar structure to the DOM tree, but it only contains information 
-related to what's visible on the page. If `display: none` is applied, that element is not part of 
-the layout tree (however, an element with `visibility: hidden` is in the layout tree). Similarly, 
-if a pseudo class with content like `p::before{content:"Hi!"}` is applied, it is included in the 
-layout tree even though that is not in the DOM.
+レイアウトは要素の配置を見つけるためのプロセスです。 メインスレッドはDOMと計算さ
+れたスタイルを調べ、x、y座標、バウンディングボックスサイズなどの情報を持つレイア
+ウトツリーを作成します。レイアウトツリーはDOMツリーと似た構造になることがありま
+すが、ページに表示される内容に関連する情報のみが含まれています。`display：
+none`が適用されている場合、その要素はレイアウトツリーの一部ではありません（ただ
+し、`visibility：hidden`を持つ要素はレイアウトツリーに含まれます）。 同様に、
+`p::before{content:"Hi!"}`のような内容を持つ疑似クラスが適用されると、それがDOM
+になくてもレイアウトツリーに含まれます。
 
 <div class="clearfix"></div>
 
 <figure>
-  <img src="/web/updates/images/inside-browser/part3/layout.png" alt="layout">
+  <img src="/web/updates/images/inside-browser/part3/layout.png" alt="レイアウト">
   <figcaption>
-    Figure 5: The main thread going over DOM tree with computed styles and producing layout tree
+    図5: メインスレッドは計算スタイルを使ってDOMツリーの上を通り、レイアウトツリーを生成します
   </figcaption>
 </figure>
 
 <figure class="attempt-right">
   <a href="/web/updates/images/inside-browser/part3/layout.mp4">
     <video src="/web/updates/images/inside-browser/part3/layout.mp4"
-           autoplay loop muted playsinline controls alt="line break layout">
+           autoplay loop muted playsinline controls alt="改行レイアウト">
     </video>
   </a>
   <figcaption>
-    Figure 6: Box layout for a paragraph moving due to line break change
+    図6: 改行のために移動する段落のボックスレイアウト
   </figcaption>
 </figure>
 
-Determining the Layout of a page is a challenging task. Even the simplest page layout like a block 
-flow from top to bottom has to consider how big the font is and where to line break them because 
-those affect the size and shape of a paragraph; which then affects where the following paragraph 
-needs to be. 
+ページのレイアウトを決定するのは難しい作業です。上から下へのブロックフローのよう
+な最も単純なページレイアウトでも、段落のサイズと形状に影響を与えるため、フォント
+の大きさと改行位置を考慮する必要があります。それは次の段落がどこにあるべきかに影
+響します。
 
-CSS can make element float to one side, mask overflow item, and change writing directions. You can 
-imagine, this layout stage has a mighty task. In Chrome, a whole team of engineers works on the 
-layout. If you want to see details of their work, 
-[few talks form BlinkOn Conference](https://www.youtube.com/watch?v=Y5Xa4H2wtVA) are recorded and 
-quite interesting to watch. 
+CSSは要素を片側にフロートさせ、オーバーフロー項目をマスクし、書き込み方向を変更
+できます。想像できるように、このレイアウトをするにはかなり骨が折れる作業です。
+Chromeでは、エンジニアチーム全員がレイアウトに取り組んでいます。あなたが彼らの仕
+事の詳細を見たいならば、[BlinkOn会議のいくつかの会議](https://www.youtube.com/watch?v=Y5Xa4H2wtVA)
+が記録されていて、見るのが非常に面白いです。
 
 <div class="clearfix"></div>
-
-## Paint
+## ペイント
 
 <figure class="attempt-right">
-  <img src="/web/updates/images/inside-browser/part3/drawgame.png" alt="drawing game">
+  <img src="/web/updates/images/inside-browser/part3/drawgame.png" alt="描画ゲーム">
   <figcaption>
-    Figure 7: A person in front of a canvas holding paintbrush, wondering if they should draw a 
-    circle first or square first
+    図7: キャンバスの前に絵筆を持っている人。先に円を描くか四角を描くか
   </figcaption>
 </figure>
 
-Having a DOM, style, and layout is still not enough to render a page. Let's say you are trying to 
-reproduce a painting. You know the size, shape, and location of elements, but you still have to 
-judge in what order you paint them.
+DOM、スタイル、およびレイアウトを持つだけでは、ページをレンダリングするのに十分
+ではありません。あなたが絵を複製しようとしているとしましょう。あなたは要素のサイ
+ズ、形、そして位置を知っています、しかしあなたはまだそれらを描く順番を判断しなけ
+ればなりません。
 
-For example, `z-index` might be set for certain elements, in that case painting in order of 
-elements written in the HTML will result in incorrect rendering. 
+例えば、 `z-index`が特定の要素に設定されているかもしれません、その場合、HTMLで書
+かれた要素の順序でペイントすることは誤ったレンダリングをもたらすでしょう。
 
 <div class="clearfix"></div>
 
 <figure>
-  <img src="/web/updates/images/inside-browser/part3/zindex.png" alt="z-index fail">
+  <img src="/web/updates/images/inside-browser/part3/zindex.png" alt="z-indexの失敗">
   <figcaption>
-    Figure 8: Page elements appearing in order of an HTML markup, resulting in wrong rendered image 
-    because z-index was not taken into account
+    図8: HTML要素のマークアップの順序でページ要素が表示され、z-indexが考慮されていなかったために誤ったレンダリング画像が表示される
   </figcaption>
 </figure>
 
-At this paint step, the main thread walks the layout tree to create paint records. Paint record is 
-a note of painting process like "background first, then text, then rectangle". If you have drawn on 
-`<canvas>` element using JavaScript, this process might be familiar to you. 
+このペイントステップでは、メインスレッドがレイアウトツリーをたどってペイントレコー
+ドを作成します。レコードのペイントは、「背景、テキスト、そして長方形」のようなペ
+イント処理の注意です。 JavaScriptを使って `<canvas>`要素を描いたことがあるなら、
+このプロセスはあなたにはおなじみのものでしょう。
 
 <figure>
   <img src="/web/updates/images/inside-browser/part3/paint.png" alt="paint records">
   <figcaption>
-    Figure 9: The main thread walking through layout tree and producing paint records 
+    図9: メインスレッドはレイアウトツリーをたどり、ペイントレコードを作成します
   </figcaption>
 </figure>
 
-### Updating rendering pipeline is costly
+### レンダリングパイプラインの更新はコストがかかります
 
 <figure class="attempt-right">
   <a href="/web/updates/images/inside-browser/part3/trees.mp4">
     <video src="/web/updates/images/inside-browser/part3/trees.mp4"
-           autoplay loop muted playsinline controls alt="DOM+Style, Layout, and Paint trees">
+           autoplay loop muted playsinline controls alt="DOMとスタイル、レイアウト、そしてペイントツリー">
     </video>
   </a>
   <figcaption>
-    Figure 10: DOM+Style, Layout, and Paint trees in order it is generated
+    図10: 生成された順番に並ぶDOMとスタイル、レイアウト、そしてペイントツリー
   </figcaption>
 </figure>
 
-The most important thing to grasp in rendering pipeline is that at each step the result of the 
-previous operation is used to create new data. For example, if something changes in the layout 
-tree, then the Paint order needs to be regenerated for affected parts of the document.
+レンダリングパイプラインで最も重要なことは、各ステップで前の操作の結果を使用して
+新しいデータが作成されることです。たとえば、レイアウトツリーで何かが変更された場
+合は、ドキュメントの影響を受けている各部分に対してペイント順を再生成する必要があ
+ります。
 
 <div class="clearfix"></div>
 
-If you are animating elements, the browser has to run these operations in between every frame. 
-Most of our displays refresh the screen 60 times a second (60 fps); animation will appear smooth to 
-human eyes when you are moving things across the screen at every frame. However, if the animation 
-misses the frames in between,  then the page will appear "janky".
+要素にアニメーションを使用している場合、ブラウザはすべてのフレームの間にこれらの
+操作を実行する必要があります。私たちのディスプレイのほとんどは、画面を1秒間に60
+回更新します（60fps）。すべてのフレームで画面上で物事を動かしているとき、アニメー
+ションは人間の目には滑らかに見えます。ただし、アニメーションがその間のフレームを
+見逃した場合、そのページは「ぎくしゃく」したように見えます。
 
 <figure>
   <img src="/web/updates/images/inside-browser/part3/pagejank1.png" 
        alt="jage jank by missing frames">
   <figcaption>
-    Figure 11: Animation frames on a timeline 
+    図11: タイムライン上のアニメーションフレーム
   </figcaption>
 </figure>
 
-Even if your rendering operations are keeping up with screen refresh, these calculations are 
-running on the main thread, which means it could be blocked when your application is running 
-JavaScript.
+レンダリング操作が画面の更新に追いついていなくても、これらの計算はメインスレッド
+で実行されているため、アプリケーションがJavaScriptを実行しているときにはブロック
+される可能性があります。
 
 <figure>
   <img src="/web/updates/images/inside-browser/part3/pagejank2.png" alt="jage jank by JavaScript">
   <figcaption>
-    Figure 12: Animation frames on a timeline, but one frame is blocked by JavaScript
+    図12: タイムライン上のアニメーションフレーム、ただし1フレームはJavaScriptによってブロックされている
   </figcaption>
 </figure>
 
-You can divide JavaScript operation into small chunks and schedule to run at every frame using 
-`requestAnimationFrame()`. For more on this topic, please see 
-[Optimize JavaScript Execution](/web/fundamentals/performance/rendering/optimize-javascript-execution)
-. You might also run your [JavaScript in Web Workers](https://www.youtube.com/watch?v=X57mh8tKkgE) 
-to avoid blocking the main thread.
+`requestAnimationFrame()`を使用してJavaScriptの操作を小さな塊に分割し、毎フレー
+ムで実行するようにスケジュールすることができます。このトピックに関する詳細は、
+[JavaScript実行の最適化](/web/fundamentals/performance/rendering/optimize-javascript-execution)
+をご覧ください。メインスレッドがブロックされないように、
+[WebワーカーのJavaScript](https://www.youtube.com/watch?v=X57mh8tKkgE)を実行することもできます。
 
 <figure>
   <img src="/web/updates/images/inside-browser/part3/raf.png" alt="request animation frame">
   <figcaption>
-    Figure 13: Smaller chunks of JavaScript running on a timeline with animation frame
+    図13: アニメーションフレームのあるタイムライン上で実行されるJavaScriptの小さな塊
   </figcaption>
 </figure>
 
-## Compositing
+## コンポサイティング
 
-### How would you draw a page?
+### どのようにしてページを描きますか？
 
 <figure class="attempt-right">
   <a href="/web/updates/images/inside-browser/part3/naive_rastering.mp4">
     <video src="/web/updates/images/inside-browser/part3/naive_rastering.mp4"
-           autoplay loop muted playsinline controls alt="naive rastering">
+           autoplay loop muted playsinline controls alt="ネイティブラスタリング">
     </video>
   </a>
   <figcaption>
-    Figure 14: Animation of naive rastering process
+    図14: ネイティブラスタリングプロセスのアニメーション
   </figcaption>
 </figure>
 
-Now that the browser knows the structure of the document, the style of each element, the geometry 
-of the page, and the paint order, how does it draw a page? Turning this information into pixels on 
-the screen is called rasterizing.
+ドキュメントの構造、各要素のスタイル、ページのジオメトリ、そしてペイントの順番を
+知ることにより、ブラウザはどうやってページを描画するのでしょうか。この情報を画面
+上でピクセルに変換することをラスタライズと呼びます。
 
-Perhaps a naive way to handle this would be to raster parts inside of the viewport. If a user 
-scrolls the page, then move the rastered frame, and fill in the missing parts by rastering more. 
-This is how Chrome handled rasterizing when it was first released. However, the modern browser 
-runs a more sophisticated process called compositing. 
+おそらくこれを処理する単純な方法は、ビューポートの内側にパーツをラスタ化することです。ユーザーがページをスクロールする場合は、ラスタフレームを移動し、さらにラスタすることによって欠けている部分を埋めます。これがChromeが最初のリリース時にラスタライズを処理した方法です。しかし、最近のブラウザはコンポサイティングと呼ばれるより洗練されたプロセスを実行します。
 
 <div class="clearfix"></div>
 
-### What is compositing
+### コンポサイティングとは
 
 <figure class="attempt-right">
   <a href="/web/updates/images/inside-browser/part3/composit.mp4">
     <video src="/web/updates/images/inside-browser/part3/composit.mp4"
-           autoplay loop muted playsinline controls alt="composit">
+           autoplay loop muted playsinline controls alt="コンポサイティング">
     </video>
   </a>
   <figcaption>
-    Figure 15: Animation of compositing process
+    図15: コンポサイティングのアニメーション
   </figcaption>
 </figure>
 
@@ -327,7 +341,7 @@ menu) is not getting one, then you can hint to the browser by using `will-change
 <figure>
   <img src="/web/updates/images/inside-browser/part3/layer.png" alt="layer tree">
   <figcaption>
-    Figure 16: The main thread walking through layout tree producing layer tree
+    図16: The main thread walking through layout tree producing layer tree
   </figcaption>
 </figure>
 
@@ -347,7 +361,7 @@ memory.
 <figure>
   <img src="/web/updates/images/inside-browser/part3/raster.png" alt="raster">
   <figcaption>
-    Figure 17: Raster threads creating the bitmap of tiles and sending to GPU 
+    図17: Raster threads creating the bitmap of tiles and sending to GPU 
   </figcaption>
 </figure>
 
@@ -381,7 +395,7 @@ GPU.
 <figure>
   <img src="/web/updates/images/inside-browser/part3/composit.png" alt="composit">
   <figcaption>
-    Figure 18: Compositor thread creating compositing frame. Fame is sent to the browser process 
+    図18: Compositor thread creating compositing frame. Fame is sent to the browser process 
     then to GPU
   </figcaption>
 </figure>
