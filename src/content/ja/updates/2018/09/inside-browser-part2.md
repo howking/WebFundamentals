@@ -1,11 +1,11 @@
 project_path: /web/_project.yaml
 book_path: /web/updates/_book.yaml
-description: Learn how browser handles navigation request.
+description: ブラウザがナビゲーション要求を処理する方法を学びます。
 
 {# wf_published_on: 2018-09-07 #}
-{# wf_updated_on: 2019-01-09 #}
+{# wf_updated_on: 2019-01-10 #}
 {# wf_featured_image: /web/updates/images/inside-browser/cover.png #}
-{# wf_featured_snippet: When you type a URL into the address bar, what happens after? When are security checks done and how does the browser speed up the process? Let's look at the page navigation process in browser! #}
+{# wf_featured_snippet: アドレスバーにURLを入力すると、その後はどうなりますか？セキュリティチェックはいつ行われ、ブラウザはプロセスをどのようにスピードアップしますか？ブラウザでページナビゲーションプロセスを見てみましょう！ #}
 {# wf_blink_components: N/A #}
 
 <style>
@@ -14,289 +14,294 @@ description: Learn how browser handles navigation request.
   }
 </style>
 
-# Inside look at modern web browser (part 2) {: .page-title }
+# モダンブラウザの内部を見る (パート2) {: .page-title }
 
 {% include "web/_shared/contributors/kosamari.html" %}
 
 
-## What happens in navigation
+## ナビゲーションで起こること
 
-This is part 2 of a 4 part blog series looking at the inner workings of Chrome. 
-In [the previous post](/web/updates/2018/09/inside-browser-part1), we looked at how different 
-processes and threads handle different parts of a browser. In this post, we dig deeper into how 
-each process and thread communicate in order to display a website.
+これはChromeの内部の仕組みを見ていく計4回のブログ連載の2回目です。
+[前回の記事](/web/updates/2018/09/inside-browser-part1)では、さまざまなプロセスやスレッド
+がブラウザのさまざまな部分をどのように処理するかを調べました。この記事では、Webサイトを表
+示するために各プロセスとスレッドがどのように通信するのかを詳しく説明します。
 
-Let’s look at a simple use case of web browsing: you type a URL into a browser, then the browser 
-fetches data from the internet and displays a page. In this post, we’ll focus on the part where a 
-user requests a site and the browser prepares to render a page - also known as a navigation.
+Webブラウジングの簡単な使用例を見てみましょう。ブラウザにURLを入力すると、ブラウザはインター
+ネットからデータを取得してページを表示します。この記事では、ユーザーがサイトを要求し、ブラ
+ウザがページのレンダリングを準備する部分（ナビゲーションとも呼ばれる）に焦点を当てます。
 
-
-## It starts with a browser process
+## まずはブラウザプロセスから始まります
 
 <figure class="attempt-right">
-  <img src="/web/updates/images/inside-browser/part2/browserprocesses.png" alt="Browser processes">
+  <img src="/web/updates/images/inside-browser/part2/browserprocesses.png" alt="ブラウザプロセス">
   <figcaption>
-    Figure 1: Browser UI at the top, diagram of the browser process with UI, network, and storage 
-    thread inside at the bottom
+    図1: 上部のブラウザUI、下部のUI、ネットワーク、およびストレージスレッドを含むブラウザプロセスの図
   </figcaption>
 </figure>
 
-As we covered in 
-[part 1: CPU, GPU, Memory, and multi-process architecture](/web/updates/2018/09/inside-browser-part1), 
-everything outside of a tab is handled by the browser process. 
-The browser process has threads like the UI thread which draws buttons and input fields of the 
-browser, the network thread which deals with network stack to receive data from the internet, 
-the storage thread that controls access to the files and more. When you type a URL into the address 
-bar, your input is handled by browser process’s UI thread.
+[パート1: CPU、GPU、メモリ、およびマルチプロセスの仕組
+み](/web/updates/2018/09/inside-browser-part1)で説明したように、タブの外側にあるものはすべ
+てブラウザプロセスによって処理されます。
+ブラウザプロセスには、ブラウザのボタンや入力フィールドを描画するUIスレッド、インターネット
+からデータを受け取るためにネットワークスタックを扱うネットワークスレッド、ファイルへのアク
+セスを制御するストレージスレッドなどのスレッドがあります。アドレスバーにURLを入力すると、
+入力はブラウザプロセスのUIスレッドによって処理されます。
 
 <div class="clearfix"></div>
 
-## A simple navigation 
+## 簡単なナビゲーション
 
-### Step 1: Handling input
+### ステップ1: 入力処理
 
-When a user starts to type into the address bar, the first thing UI thread asks is "Is this a 
-search query or URL?". In Chrome, the address bar is also a search input field, so the UI thread 
-needs to parse and decide whether to send you to a search engine, or to the site you requested.  
+ユーザーがアドレスバーに入力し始めると、UIスレッドは最初に「これは検索クエリですか？それと
+もURLですか？」と尋ねます。 Chromeでは、アドレスバーは検索入力フィールドでもあるため、UIス
+レッドは、ユーザーを検索エンジンに送信するか、リクエストしたサイトに送信するかを解析して決
+定する必要があります。
 
 <figure>
-  <img src="/web/updates/images/inside-browser/part2/input.png" alt="Handling user input">
+  <img src="/web/updates/images/inside-browser/part2/input.png" alt="ユーザー入力の処理">
   <figcaption>
-    Figure 1: UI Thread asking if the input is a search query or a URL
+    図1: 入力が検索クエリかURLかを尋ねるUIスレッド
   </figcaption>
 </figure>
 
-### Step 2: Start navigation
+### ステップ2: ナビゲーションを開始
 
-When a user hits enter, the UI thread initiates a network call to get site content. Loading spinner 
-is displayed on the corner of a tab, and the network thread goes through appropriate protocols like 
-DNS lookup and establishing TLS Connection for the request.
+ユーザーがEnterキーを押すと、UIスレッドはサイトコンテンツを取得するためのネットワーク呼び
+出しを開始します。ローディングスピナーがタブの隅に表示され、ネットワークスレッドはDNSルッ
+クアップや要求に対するTLS接続の確立などの適切なプロトコルを通過します。
 
 <figure>
-  <img src="/web/updates/images/inside-browser/part2/navstart.png" alt="Navigation start">
+  <img src="/web/updates/images/inside-browser/part2/navstart.png" alt="ナビゲーション開始">
   <figcaption>
-    Figure 2: the UI thread talking to the network thread to navigate to mysite.com
+    図2: mysite.comにナビゲートするためにネットワークスレッドと通信するUIスレッド
   </figcaption>
 </figure>
 
-At this point, the network thread may receive a server redirect header like HTTP 301. In that case, 
-the network thread communicates with UI thread that the server is requesting redirect. Then, 
-another URL request will be initiated. 
+この時点で、ネットワークスレッドは、HTTP 301のよ​​うなサーバリダイレクトヘッダを受信すること
+ができます。その場合、ネットワークスレッドは、サーバがリダイレクトを要求していることをUIス
+レッドと通信します。その後、別のURLリクエストが開始されます。
 
-### Step 3: Read response
+### ステップ3: 読み取り応答
 
 <figure class="attempt-right">
-  <img src="/web/updates/images/inside-browser/part2/response.png" alt="HTTP response">
+  <img src="/web/updates/images/inside-browser/part2/response.png" alt="HTTPレスポンス">
   <figcaption>
-    Figure 3: response header which contains Content-Type and payload which is the actual data 
+    図3: Content-Typeと実際のデータであるペイロードを含むレスポンスヘッダ
   </figcaption>
 </figure>
 
-Once the response body (payload) starts to come in, the network thread looks at the first few bytes 
-of the stream if necessary. The response's Content-Type header should say what type of data it is, 
-but since it may be missing or wrong, 
-[MIME Type sniffing](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types) 
-is done here. This is a "tricky business" as commented in [the source code](https://cs.chromium.org/chromium/src/net/base/mime_sniffer.cc?sq=package:chromium&dr=CS&l=5). 
-You can read the comment to see how different browsers treat content-type/payload pairs.
+応答の本体（ペイロード）が入ってくると、ネットワークスレッドは必要に応じてストリームの最初
+の数バイトを調べます。レスポンスのContent-Typeヘッダは、それがどんな種類のデータであるかを
+示すべきですが、それが欠けているか間違っているかもしれないので、ここでは [MIMEタイプ
+チェック](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types)を行います。
+[ソースコード](https://cs.chromium.org/chromium/src/net/base/mime_sniffer.cc?sq=package:chromium&dr=CS&l=5)
+でコメントされているように、これは「きわどい仕事」です。コメントを読んで、さまざまなブラウ
+ザがコンテンツタイプとペイロードのペアをどのように扱うかを確認できます。
 
 <div class="clearfix"></div>
 
-If the response is an HTML file, then the next step would be to pass the data to the renderer 
-process, but if it is a zip file or some other file then that means it is a download request so 
-they need to pass the data to download manager.
+応答がHTMLファイルの場合、次のステップはデータをレンダラープロセスに渡すことですが、それが
+zipファイルまたはその他のファイルの場合は、ダウンロード要求であり、ダウンロードマネージャ
+にデータを渡す必要があります。
 
 <figure>
-  <img src="/web/updates/images/inside-browser/part2/sniff.png" alt="MIME type sniffing">
+  <img src="/web/updates/images/inside-browser/part2/sniff.png" alt="MIMEタイプチェック">
   <figcaption>
-    Figure 4: Network thread asking if response data is HTML from a safe site 
+    図4: 応答データが安全なサイトからのHTMLかどうかを尋ねるネットワークスレッド
   </figcaption>
 </figure>
 
-This is also where the [SafeBrowsing](https://safebrowsing.google.com/) check happens. 
-If the domain and the response data seems to match a known malicious site, then the network thread 
-alerts to display a warning page. Additionally, 
-[**C**ross **O**rigin **R**ead **B**locking (**CORB**)](https://www.chromium.org/Home/chromium-security/corb-for-developers) 
-check happens in order to make sure sensitive cross-site 
-data does not make it to the renderer process.
+これは[セーフブラウジング](https://safebrowsing.google.com/)チェックが行われる場所でもあり
+ます。ドメインとレスポンスデータが悪意のある既知のサイトと一致すると思われる場合、ネットワー
+クスレッドは警告ページを表示するように警告します。さらに、機密のクロスサイトデータがレンダ
+ラープロセスに影響を与えないようにするために、[**C**ross **O**rigin **R**ead **B**locking
+(**CORB**)](https://www.chromium.org/Home/chromium-security/corb-for-developers) チェック
+が行われます。
 
-### Step 3: Find a renderer process
+### ステップ3: レンダラープロセスを探す
 
-Once all of the checks are done and Network thread is confident that browser should navigate to the 
-requested site, the Network thread tells UI thread that the data is ready. UI thread then finds a 
-renderer process to carry on rendering of the web page. 
+すべてのチェックが完了し、ネットワークスレッドがブラウザが要求されたサイトに移動する必要が
+あることを確信すると、ネットワークスレッドはデータが準備できたことをUIスレッドに伝えます。
+その後、UIスレッドはWebページのレンダリングを続行するためのレンダラープロセスを見つけます。
 
 <figure>
-  <img src="/web/updates/images/inside-browser/part2/findrenderer.png" alt="Find renderer process">
+  <img src="/web/updates/images/inside-browser/part2/findrenderer.png" alt="レンダラープロセスを探す">
   <figcaption>
-    Figure 5: Network thread telling UI thread to find Renderer Process 
+    図5: UIスレッドにレンダラープロセスを見つけるように指示するネットワークスレッド
   </figcaption>
 </figure>
 
-Since the network request could take several hundred milliseconds to get a response back, an 
-optimization to speed up this process is applied. When the UI thread is sending a URL request to 
-the network thread at step 2, it already knows which site they are navigating to. The UI thread 
-tries to proactively find or start a renderer process in parallel to the network request. This way, 
-if all goes as expected, a renderer process is already in standby position when the network thread 
-received data. This standby process might not get used if the navigation redirects cross-site, in 
-which case a different process might be needed.
+ネットワーク要求が応答を返すまでに数百ミリ秒かかることがあるので、このプロセスを高速化する
+ための最適化が適用されます。ステップ2でUIスレッドがURL要求をネットワークスレッドに送信して
+いるときは、どのサイトに移動しているのかは既にわかっています。 UIは、ネットワーク要求と並
+行してレンダラプロセスを予防的に検索または開始するためのスレッドです。このようにして、すべ
+てが期待通りに動作する場合、ネットワークスレッドがデータを受信したときにレンダラープロセス
+はすでにスタンバイの位置にあります。ナビゲーションがサイト間をリダイレクトする場合、このス
+タンバイプロセスは使用されないかもしれません。
 
-### Step 4: Commit navigation
 
-Now that the data and the renderer process is ready, an IPC is sent from the browser process to the 
-renderer process to commit the navigation. It also passes on the data stream so the renderer 
-process can keep receiving HTML data. Once the browser process hears confirmation that the commit 
-has happened in the renderer process, the navigation is complete and the document loading phase 
-begins.
+### ステップ4: ナビゲーションをコミット
 
-At this point, address bar is updated and the security indicator and site settings UI reflects the 
-site information of the new page. The session history for the tab will be updated so back/forward 
-buttons will step through the site that was just navigated to. To facilitate tab/session restore 
-when you close a tab or window, the session history is stored on disk.
+データとレンダラープロセスの準備ができたので、ナビゲーションをコミットするためにIPCがブラ
+ウザプロセスからレンダラープロセスに送信されます。また、レンダラープロセスがHTMLデータを受
+信し続けることができるようにデータストリームを渡します。ブラウザプロセスが、レンダラープロ
+セスでコミットを確認すると、ナビゲーションは完了し、ドキュメントの読み込みフェーズが開始さ
+れます。
+
+この時点で、アドレスバーが更新され、セキュリティインジケータとサイト設定のUIに新しいページ
+のサイト情報が反映されます。タブのセッション履歴が更新されるため、戻る/進むボタンで移動し
+たばかりのサイトに移動します。タブまたはウィンドウを閉じるときのタブ/セッションの復元を容
+易にするために、セッション履歴はディスクに保存されます。
 
 <figure>
-  <img src="/web/updates/images/inside-browser/part2/commit.png" alt="Commit the navigation">
+  <img src="/web/updates/images/inside-browser/part2/commit.png" alt="ナビゲーションをコミット">
   <figcaption>
-    Figure 6: IPC between the browser and the renderer processes, requesting to render the page 
+    Figure 6: ブラウザとレンダラプロセス間のIPC。ページのレンダリングを要求します。
   </figcaption>
 </figure>
 
-### Extra Step: Initial load complete
+### 追加ステップ: 初期ロード完了
 
-Once the navigation is committed, the renderer process carries on loading resources and renders the 
-page. We will go over the details of what happens at this stage in the next post. Once the renderer 
-process "finishes" rendering, it sends an IPC back to the browser process (this is after all the 
-`onload` events have fired on all frames in the page and have finished executing). At this point, 
-the UI thread stops the loading spinner on the tab. 
+ナビゲーションがコミットされると、レンダラープロセスはリソースのロードを続け、ページをレン
+ダリングします。次の投稿では、この段階で何が起こるのかについて詳しく説明します。レンダラー
+プロセスがレンダリングを「完了」すると、ブラウザプロセスにIPCを送り返します（これは、すべ
+ての `onload`イベントがページ内のすべてのフレームで発生し、実行が終了した後です）。この時
+点で、UIスレッドはタブ上のローディングスピナーを停止します。
 
-I say "finishes", because client side JavaScript could still load 
-additional resources and render new views after this point.
+「完了」といったのは、この後でもクライアント側のJavaScriptは追加のリソースをロードして新し
+いビューをレンダリングする可能性があるためです。
 
 <figure>
-  <img src="/web/updates/images/inside-browser/part2/loaded.png" alt="Page finish loading">
+  <img src="/web/updates/images/inside-browser/part2/loaded.png" alt="ページのロード完了">
   <figcaption>
-    Figure 7: IPC from the renderer to the browser process to notify the page has "loaded" 
+    図7: ページに「ロード」されたことを通知するための、レンダラからブラウザプロセスへのIPC
   </figcaption>
 </figure>
 
-## Navigating to a different site
+## 別のサイトに移動する
 
-The simple navigation was complete! But what happens if a user puts different URL to address bar 
-again? Well, the browser process goes through the same steps to navigate to the different site. 
-But before it can do that, it needs to check with the currently rendered site if they care about 
-[`beforeunload`](https://developer.mozilla.org/en-US/docs/Web/Events/beforeunload) event. 
+簡単なナビゲーションは完了しました！しかし、ユーザーがアドレスバーに別のURLを入力した場合
+はどうなるでしょうか、ご想像の通り、ブラウザのプロセスは別のサイトに移動するために同じ手順
+を経ます。ただし、その前に
+[beforeunload](https://developer.mozilla.org/en-US/docs/Web/Events/beforeunload)イベントを
+使うかどうかを現在レンダリングされているサイトで確認されます。
 
-`beforeunload` can create "Leave this site?" alert when you try to navigate away or close the tab. 
-Everything inside of a tab including your JavaScript code is handled by the renderer process, so 
-the browser process has to check with current renderer process when new navigation request comes in.
+`beforeunload`はタブを移動しようとしたり閉じたりしようとするとする時に「このサイトを離れま
+すか？ 」というアラートを出すこことができます。JavaScriptコードを含むタブ内のものはすべて
+レンダラープロセスによって処理されるため、新しいナビゲーション要求が発生したときにブラウザ
+プロセスは現在のレンダラープロセスを確認する必要があります。
 
-Caution: Do not add unconditional `beforeunload` handlers. It creates more latency because the 
-handler needs to be executed before the navigation can even be started. This event handler should 
-be added only when needed, for example if users need to be warned that they might lose data they've 
-entered on the page.
+注意: 無条件に `beforeunload`ハンドラを追加しないでください。ナビゲーションを開始する前に
+ハンドラを実行する必要があるため、待ち時間が長くなります。このイベントハンドラは、必要な場
+合にのみ追加する必要があります。たとえば、ユーザーがページに入力したデータを失う可能性があ
+ることをユーザーに警告する必要がある場合などです。
 
 <figure>
   <img src="/web/updates/images/inside-browser/part2/beforeunload.png" 
-    alt="beforeunload event handler">
+    alt="beforeunloadイベントハンドラ">
   <figcaption>
-    Figure 8: IPC from the browser process to a renderer process telling it that it's about to 
-    navigate to a different site
+    図8: ブラウザプロセスからレンダラープロセスへのIPCで、別のサイトに移動することを伝える
   </figcaption>
 </figure>
 
-If the navigation was initiated from the renderer process (like user clicked on a link or 
-client-side JavaScript has run `window.location = "https://newsite.com"`) the renderer process 
-first checks `beforeunload` handlers. Then, it goes through the same process as browser process 
-initiated navigation. The only difference is that navigation request is kicked off from the 
-renderer process to the browser process.
+ナビゲーションがレンダラープロセスから開始された場合（ユーザーがリンクをクリックした場合や
+クライアントサイドのJavaScriptが `window.location ="https://newsite.com"`を実行した場合）、
+レンダラープロセスはまず `beforeunload`ハンドラーをチェックします。その後、ブラウザプロセ
+スがナビゲーションを開始したのと同じプロセスを経ます。唯一の違いは、ナビゲーション要求がレ
+ンダラープロセスからブラウザプロセスへと開始されることです。
 
-When the new navigation is made to a different site than currently rendered one, a separate render 
-process is called in to handle the new navigation while current render process is kept around to 
-handle events like `unload`. For more, see [an overview of page lifecycle states](/web/updates/2018/07/page-lifecycle-api#overview_of_page_lifecycle_states_and_events) 
-and how you can hook into events with 
-[the Page Lifecycle API](/web/updates/2018/07/page-lifecycle-api).
+新しいナビゲーションが現在レンダリングされているサイトとは異なるサイトに作成された場合、新
+しいナビゲーションを処理するために別のレンダリングプロセスが呼び出され、現在のレンダリング
+プロセスはunloadなどのイベントを処理するために保持されます。詳細については、「[ページライ
+フサイクル状態の概要](/web/updates/2018/07/page-lifecycle-api#overview_of_page_lifecycle_states_and_events)」
+および「[ページライフサイクルAPI](/web/updates/2018/07/page-lifecycle-api)」を使用してイベ
+ントにフックする方法を参照してください。
 
 <figure>
-  <img src="/web/updates/images/inside-browser/part2/unload.png" alt="new navigation and unload">
+  <img src="/web/updates/images/inside-browser/part2/unload.png" alt="新しいナビゲーションとアンロード">
   <figcaption>
-    Figure 9: 2 IPCs from a browser process to a new renderer process telling to render the page 
-    and telling old renderer process to unload
+    図9: ブラウザプロセスから新しいレンダラープロセスへの2ページのIPCで、ページのレンダリング
+      を指示し、古いレンダラープロセスにアンロードを指示します。
   </figcaption>
 </figure>
 
-## In case of Service Worker
+## Service Workerの場合
 
-One recent change to this navigation process is the introduction of 
-[service worker](/web/fundamentals/primers/service-workers/). Service worker is a way to write 
-network proxy in your application code; allowing web developers to have more control over what to 
-cache locally and when to get new data from the network. If service worker is set to load the page 
-from the cache, there is no need to request the data from the network.
+このナビゲーションプロセスに対する最近の変更の1つは、「[Service
+Worker](/web/fundamentals/primers/service-workers/)」の導入です。Service Workerはあなたの
+アプリケーションコードでネットワークプロキシを書く方法です。 Web開発者が、何をローカルに
+キャッシュし、いつネットワークから新しいデータを取得するかをより詳細に制御できるようにしま
+す。Service Workerがキャッシュからページをロードするように設定されている場合は、ネットワー
+クからデータを要求する必要はありません。
 
-The important part to remember is that service worker is JavaScript code that runs in a renderer 
-process. But when the navigation request comes in, how does a browser process know the site has a 
-service worker?
+覚えておくべき重要な部分は、Service Workerがレンダラープロセスで実行されるJavaScriptコード
+であるということです。しかし、ナビゲーション要求が入ったとき、ブラウザプロセスはどのように
+してそのサイトにService Workerが登録されているのかを知るのでしょうか。
 
 <figure class="attempt-right">
   <img src="/web/updates/images/inside-browser/part2/scope_lookup.png" 
-    alt="Service worker scope lookup">
+    alt="Service Workerのスコープ検索">
   <figcaption>
-    Figure 10: the network thread in the browser process looking up service worker scope
+    図10: Service Workerスコープを検索するブラウザプロセス内のネットワークスレッド
   </figcaption>
 </figure>
 
-When a service worker is registered, the scope of the service worker is kept as a reference 
-(you can read more about scope in this 
-[The Service Worker Lifecycle](/web/fundamentals/primers/service-workers/lifecycle) article). 
-When a navigation happens, network thread checks the domain against registered service worker 
-scopes, if a service worker is registered for that URL, the UI thread finds a renderer process in 
-order to execute the service worker code. The service worker may load data from cache, eliminating 
-the need to request data from the network, or it may request new resources from the network.
+Service Workerが登録されると、Service Workerの参照範囲が保持されます（この「[Service
+Workerのライフサイクル](/web/fundamentals/primers/service-workers/lifecycle)」の記事で範囲
+の詳細について読むことができます）。
+
+ナビゲーションが発生すると、ネットワークスレッドは登録されているService Workerスコープに対
+してドメインをチェックします。Service WorkerがそのURLに登録されている場合、UIスレッドは
+Service Workerコードを実行するためにレンダラープロセスを見つけます。Service Workerは、ネッ
+トワークからデータを要求することなくキャッシュからデータをロードすることができ、もしくは常
+にネットワークから新しいリソースを要求することもできます。
 
 <figure>
   <img src="/web/updates/images/inside-browser/part2/serviceworker.png" 
     alt="serviceworker navigation">
   <figcaption>
-    Figure 11: the UI thread in a browser process starting up a renderer process to handle service 
-    workers; a worker thread in a renderer process then requests data from the network
+    図11: Service Workerを処理するためにレンダラープロセスを起動するブラウザプロセスのUIス
+       レッド。レンダラープロセスのワーカースレッドは、ネットワークからデータを要求します。
   </figcaption>
 </figure>
 
-## Navigation Preload
+## ナビゲーションプリロード
 
-You can see this round trip between the browser process and renderer process could result in delays 
-if service worker eventually decides to request data from the network. 
-[Navigation Preload](/web/updates/2017/02/navigation-preload) is a mechanism to speed up this 
-process by loading resources in parallel to service worker startup. 
-It marks these requests with a header, allowing servers to decide to send different content for 
-these requests; for example, just updated data instead of a full document.
+Service Workerが最終的にネットワークからデータを要求する場合、ブラウザープロセスとレンダ
+ラープロセスの往復の結果、遅延が生じる場合があります。「[ナビゲーションプリロー
+ド](/web/updates/2017/02/navigation-preload)」は、Service Workerの起動と並行してリソース
+をロードすることによってこのプロセスを高速化するためのメカニズムです。それはヘッダのリクエ
+ストにマークをつけ、サーバがこれらのリクエストのために異なるコンテンツを送信することを可能
+にします。たとえば、文書全体ではなく一部のデータを更新したいだけの場合です。
 
 <figure>
   <img src="/web/updates/images/inside-browser/part2/navpreload.png" alt="Navigation preload">
   <figcaption>
-    Figure 12: the UI thread in a browser process starting up a renderer process to handle service 
-    worker while kicking off network request in parallel
+    図12: ネットワーク要求を並行して開始しながらService Workerを処理するためにレンダラープロセスを起動するブラウザプロセスのUIスレッド
   </figcaption>
 </figure>
 
-## Wrap-up
+## さいごに
 
-In this post, we looked at what happens during a navigation and how your web application code such 
-as response headers and client-side JavaScript interact with the browser. Knowing the steps browser 
-goes through to get data from the network makes it easier to understand why APIs like navigation 
-preload were developed. In the next post, we’ll dive into how the browser evaluates our 
-HTML/CSS/JavaScript to render pages.
+この投稿では、ナビゲーション中に何が起こるのか、そしてレスポンスヘッダやクライアントサイド
+JavaScriptのようなあなたのWebアプリケーションコードがブラウザとどのようにやり取りするのか
+を調べました。ブラウザがネットワークからデータを取得するための手順を知っていると、ナビゲー
+ションプリロードなどのAPIが開発された理由を理解しやすくなります。次の投稿では、ブラウザが
+どのようにHTML/CSS/JavaScriptを評価してページをレンダリングするかについて詳しく説明します。
 
-Did you enjoy the post? If you have any questions or suggestions for the future post, I'd love to 
-hear from you in the comment section below or [@kosamari](https://twitter.com/kosamari) on Twitter.
+この投稿は楽しめましたか？今後の投稿について質問や提案がある場合は、下記のコメント欄または
+Twitterの[@kosamari](https://twitter.com/kosamari)までご連絡ください。
 
 <a class="button button-primary gc-analytics-event attempt-right"
    href="/web/updates/2018/09/inside-browser-part3"
    data-category="InsideBrowser" data-label="Part2 / Next">
-  Next: Inner workings of a Renderer Process
+  次へ: レンダラープロセスの内部動作
 </a>
 
 <div class="clearfix"></div>
 
-## Feedback {: .hide-from-toc }
+## フィードバック {: .hide-from-toc }
 
 {% include "web/_shared/helpful.html" %}
 
