@@ -3,7 +3,7 @@ book_path: /web/updates/_book.yaml
 description: 上位アーキテクチャからレンダリングパイプラインの詳細に至るまで、ブラウザがどのようにしてコードを機能的なWebサイトに変えるかを学びます。
 
 {# wf_published_on: 2018-09-05 #}
-{# wf_updated_on: 2019-01-09 #}
+{# wf_updated_on: 2019-01-10 #}
 {# wf_featured_image: /web/updates/images/inside-browser/cover.png #}
 {# wf_featured_snippet: 上位アーキテクチャからレンダリングパイプラインの詳細にいたるまで、ブラウザがどのようにしてコードを機能的なWebサイトに変換していくのかを学びます。パート1では、コアコンピューティング用語とChromeのマルチプロセスアーキテクチャについて説明します。 #}
 {# wf_blink_components: N/A #}
@@ -28,7 +28,7 @@ description: 上位アーキテクチャからレンダリングパイプライ�
 この連載の第1回として、コアとなるコンピュータ用語とChromeのマルチプロセス・アーキテクチャ
 について説明します。
 
-注: CPU/GPUおよびプロセス/スレッドの概念に精通している場合は、[ブラウザの仕組み](#browser-architecture)に進んでください。
+Note: CPU/GPUおよびプロセス/スレッドの概念に精通している場合は、[ブラウザの仕組み](#browser-architecture)に進んでください。
 
 ## コンピュータの中核にあるのはCPUとGPUです
 
