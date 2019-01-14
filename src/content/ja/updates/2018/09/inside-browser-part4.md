@@ -1,11 +1,11 @@
 project_path: /web/_project.yaml
 book_path: /web/updates/_book.yaml
-description: Input event handling with the compositor thread 
+description: コンポサイトスレッドによる入力イベント処理
 
 {# wf_published_on: 2018-09-21 #}
-{# wf_updated_on: 2019-01-09 #}
+{# wf_updated_on: 2019-01-14 #}
 {# wf_featured_image: /web/updates/images/inside-browser/cover.png #}
-{# wf_featured_snippet: For the last of this 4 part blog series, we look at how the compositor is enabling smooth interaction when user input comes in #}
+{# wf_featured_snippet: この計4回のブログ連載の最後の部分では、ユーザー入力が発生した時にどのようにコンサイトが円滑なインタラクションを可能にしているか調べます #}
 {# wf_blink_components: N/A #}
 
 <style>
@@ -14,16 +14,13 @@ description: Input event handling with the compositor thread
   }
 </style>
 
-# Inside look at modern web browser (part 4) {: .page-title }
+# モダンブラウザの内部を見る(パート4) {: .page-title }
 
 {% include "web/_shared/contributors/kosamari.html" %}
 
-## Input is coming to the Compositor
+## インプットがコンポサイトにくるまで
 
-This is the last of the 4 part blog series looking inside of Chrome; investigating how it handles 
-our code to display a website. In the previous post, we looked at [the rendering process and 
-learned about the compositor](/web/updates/2018/09/inside-browser-part3). In this post, we'll 
-look at how compositor is enabling smooth interaction when user input comes in.
+これはChromeの内部の仕組みを見ていく計4回のブログ連載の最後で、Webサイトを表示するためのコードの処理方法を調査します。前回の記事では、[レンダリング・プロセス](/web/updates/2018/09/inside-browser-part3)を紹介し、コンポサイトについて調べました。この記事では、ユーザー入力が発生したときにコンポサイトが円滑なインタラクションを可能にしている様子を説明します。
 
 ## Input events from the browser's point of view
 
