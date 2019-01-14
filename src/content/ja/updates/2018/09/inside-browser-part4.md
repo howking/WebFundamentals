@@ -3,7 +3,7 @@ book_path: /web/updates/_book.yaml
 description: コンポジットスレッドによる入力イベント処理
 
 {# wf_published_on: 2018-09-21 #}
-{# wf_updated_on: 2019-01-14 #}
+{# wf_updated_on: 2019-01-18 #}
 {# wf_featured_image: /web/updates/images/inside-browser/cover.png #}
 {# wf_featured_snippet: この計4回のブログ連載の最後の部分では、ユーザー入力が発生した時にどのようにコンポジットが円滑なインタラクションを可能にしているか調べます #}
 {# wf_blink_components: N/A #}
@@ -41,53 +41,51 @@ description: コンポジットスレッドによる入力イベント処理
 <figure>
   <img src="/web/updates/images/inside-browser/part4/input.png" alt="input event">
   <figcaption>
-    図1: Input event routed through the browser process to the renderer process
+    図1: ブラウザプロセスを通じてレンダラープロセスにルーティングされた入力イベント
   </figcaption>
 </figure>
 
-## Compositor receives input events 
+## コンポジタが入力イベントを受け取る
 
 <figure class="attempt-right">
   <a href="/web/updates/images/inside-browser/part3/composit.mp4">
     <video src="/web/updates/images/inside-browser/part3/composit.mp4"
-           autoplay loop muted playsinline controls alt="composit">
+           autoplay loop muted playsinline controls alt="コンポジット">
     </video>
   </a>
   <figcaption>
-    図2: Viewport hovering over page layers
+    図2: ページレイヤの上に浮ぶビューポート
   </figcaption>
 </figure>
 
-In the previous post, we looked at how the compositor could handle scroll smoothly by compositing 
-rasterized layers. If no input event listeners are attached to the page, Compositor thread can 
-create a new composite frame completely independent of the main thread. But what if some event 
-listeners were attached to the page? How would the compositor thread find out if the event needs 
-to be handled?
+前回の記事では、ラスタライズされたレイヤーを合成することによってコンポジタがスクロールをス
+ムーズに処理する方法について説明しました。もし入力イベントリスナーがページにアタッチされて
+いなければ、コンポジタスレッドはメインスレッドから完全に独立して新しい複合フレームを作成で
+きます。 しかし、一部のイベントリスナーがページに設定されているとどうなるでしょうか？その
+イベントは処理する必要があるのかどうか、コンポジタスレッドはどのようにして判断すればよいで
+しょうか。
 
 <div class="clearfix"></div>
 
-## Understanding non-fast scrollable region
+## 高速スクロールの不可領域について
 
-Since running JavaScript is the main thread's job, when a page is composited, the compositor thread 
-marks a region of the page that has event handlers attached as "Non-Fast Scrollable Region". By 
-having this information, the compositor thread can make sure to send input event to the main thread 
-if the event occurs in that region. If input event comes from outside of this region, then the 
-compositor thread carries on compositing new frame without waiting for the main thread.
-
+JavaScriptの実行はメインスレッドの仕事であるため、ページが合成されると、コンポジタスレッド
+はイベントハンドラが設定されているページの領域に「高速スクロールの不可領域」としてマークを
+付けます。 この情報により、イベントがその領域で発生した場合、コンポジタスレッドは必ず入力
+イベントをメインスレッドに送信することができます。 入力イベントがこの領域の外側から来た場
+合、コンポジタスレッドはメインスレッドを待たずに新しいフレームの合成を続けます。
 
 <figure>
   <img src="/web/updates/images/inside-browser/part4/nfsr1.png"
-       alt="limited non fast scrollable region">
+       alt="高速スクロールの不可領域の制限">
   <figcaption>
-    図3: Diagram of described input to the non-fast scrollable region
+    図3: 高速スクロールの不可領域として記述された入力
   </figcaption>
 </figure>
 
-### Be aware when you write event handlers
+### イベントハンドラを書くときは注意してください
 
-Common event handling pattern in web development is the event delegation. Since events bubble, you 
-can attach one event handler at the topmost element and delegate tasks based on event target. You 
-might have seen or written code like the blow.
+Web開発における一般的なイベント処理パターンはイベントの委任です。イベントが発生すると、一番上の要素に1つのイベントハンドラをアタッチし、イベントターゲットに基づいてタスクを委任することができます。あなたは下記のようなコードを見たり書いたことがあるかもしれません。
 
 ```javascript
 document.body.addEventListener('touchstart', event => {
@@ -97,24 +95,24 @@ document.body.addEventListener('touchstart', event => {
 });
 ```
 
-Since you only need to write one event handler for all elements, ergonomics of this event 
-delegation pattern are attractive. However, if you look at this code from the browser's point of 
-view, now the entire page is marked as a non-fast scrollable region. This means even if your 
-application doesn't care about input from certain parts of the page, the compositor thread has to 
-communicate with the main thread and wait for it every time an input event comes in. Thus, the 
-smooth scrolling ability of the compositor is defeated.
+ページのすべての要素に対して1つのイベントハンドラを作成するだけでなので、このイベント委任
+パターンは人間工学的には魅力的です。ただし、ブラウザの観点からこのコードを見ると、ページ全
+体が高速スクロールの不可領域としてマークされてしまっています。 つまり、アプリケーションが
+ページの特定部分からの入力を気にする必要がないのに、コンポジタスレッドはメインスレッドと通
+信し、入力イベントが発生するたびにそれを待ってしまいます。よって、コンポジタのスムーズなス
+クロール性能がだいなしになっています。
 
 <figure>
   <img src="/web/updates/images/inside-browser/part4/nfsr2.png"
        alt="full page non fast scrollable region">
   <figcaption>
-    図4: Diagram of described input to the non-fast scrollable region covering an entire page
+    図4: ページ全体をカバーする高速スクロールの不可領域へ記述された入力
   </figcaption>
 </figure>
 
-In order to mitigate this from happening, you can pass `passive: true` options in your event 
-listener. This hints to the browser that you still want to listen to the event in the main thread, 
-but compositor can go ahead and composite new frame as well. 
+これを防ぐためには、イベントリスナーに`passive: true`オプションを渡すことができます。これ
+はブラウザにメインスレッドのイベントを続けて受けるヒントとなるので、コンポジタは先に進み、
+新しいフレームを合成することができます。
 
 ```javascript
 document.body.addEventListener('touchstart', event => {
@@ -124,20 +122,21 @@ document.body.addEventListener('touchstart', event => {
  }, {passive: true});
 ```
 
-## Check if the event is cancelable
+## イベントがキャンセル可能かどうかを確認
 
 <figure class="attempt-right">
-  <img src="/web/updates/images/inside-browser/part4/scroll.png" alt="page scroll">
+  <img src="/web/updates/images/inside-browser/part4/scroll.png" alt="ページスクロール">
   <figcaption>
-    図5: A web page with part of the page fixed to horizontal scroll
+    図5: ページの一部が水平スクロールに固定されているWebページ
   </figcaption>
 </figure>
 
-Imagine you have a box in a page that you want to limit scroll direction to horizontal scroll only. 
+ページ内に、スクロール方向を水平スクロールのみに制限したいボックスがあるとします。
 
-Using `passive: true` option in your pointer event means that the page scroll can be smooth, but 
-vertical scroll might have started by the time you want to `preventDefault` in order to limit 
-scroll direction. You can check against this by using `event.cancelable` method. 
+ポインタイベントで `passive: true`オプションを使うことはページスクロールをスムーズにするこ
+とができることを意味しますが、スクロール方向を制限するために`preventDefault`したい時にに垂
+直スクロールが始まっているかもしれません。これに対して `event.cancelable`メソッドを使って
+確認することができます。
 
 <div class="clearfix"></div>
 
@@ -152,7 +151,8 @@ document.body.addEventListener('pointermove', event => {
 }, {passive: true});
 ```
 
-Alternatively, you may use CSS rule like `touch-action` to completely eliminate the event handler.
+あるいは、`touch-action`のようなCSSルールを使ってイベントハンドラを完全に排除することもで
+きます。
 
 ```css
 #area { 
@@ -160,66 +160,64 @@ Alternatively, you may use CSS rule like `touch-action` to completely eliminate 
 }
 ```
 
-## Finding the event target
+## イベントターゲットを見つける
 
 <figure class="attempt-right">
   <img src="/web/updates/images/inside-browser/part4/hittest.png" alt="hit test">
   <figcaption>
-    図6: The main thread looking at the paint records asking what's drawn on x.y point 
+    図6: ペイントを見ているメインスレッドがx.yのどこに描画するのか尋ねる
   </figcaption>
 </figure>
 
-When the compositor thread sends an input event to the main thread, the first thing to run is a hit 
-test to find the event target. Hit test uses paint records data that was generated in the rendering 
-process to find out what is underneath the point coordinates in which the event occurred.
+コンポジタスレッドがメインスレッドに入力イベントを送信するとき、最初に実行するのはイベント
+ターゲットを見つけるためのヒットテストです。ヒットテストでは、レンダリングプロセスで生成さ
+れたペイントレコードデータを使用して、イベントが発生したポイント座標の下に何があるかを調べ
+ます。
 
 <div class="clearfix"></div>
 
-## Minimizing event dispatches to the main thread
+## メインスレッドへのイベント発行の最小化
 
-In the previous post, we discussed how our typical display refreshes screen 60 times a second and 
-how we need to keep up with the cadence for smooth animation. For input, a typical touch-screen 
-device delivers touch event 60-120 times a second, and a typical mouse delivers events 100 times a 
-second. Input event has higher fidelity than our screen can refresh. 
-
-If a continuous event like `touchmove` was sent to the main thread 120 times a second, then it 
-might trigger excessive amount of hit tests and JavaScript execution compared to how slow the 
-screen can refresh.
+前回の記事では、私たちの典型的なディスプレイが1秒間に60回画面を更新する方法と、スムーズなアニメーションのためにどのように歩調を合わせる必要があるかについて説明しました。入力の場合、一般的なタッチスクリーンデバイスは1秒間に60〜120回タッチイベントを配信し、一般的なマウスは1秒間に100回イベントを配信します。入力イベントは、画面が更新できるよりも忠実度が高いです。
+`touchmove`のような継続的なイベントが1秒間に120回メインスレッドに送信されると、画面のリフレッシュ速度が遅くなるのに比べて、大量のヒットテストやJavaScriptの実行が引き起こされる可能性があります。
 
 <figure>
   <img src="/web/updates/images/inside-browser/part4/rawevents.png" alt="unfiltered events">
   <figcaption>
-    図7: Events flooding the frame timeline causing page jank  
+    図7: フレームタイムラインをあふれさせるイベントによりページが乱れる
   </figcaption>
 </figure>
-
 To minimize excessive calls to the main thread, Chrome coalesces continuous events (such as 
 `wheel`, `mousewheel`, `mousemove`, `pointermove`,  `touchmove` ) and delays dispatching until 
 right before the next `requestAnimationFrame`. 
 
+メインスレッドへの過度の呼び出しを最小限に抑えるために、Chromeは継続的なイベント（`wheel`、
+`mousewheel`、`mousemove`、`pointermove`、`touchmove`など）を統合し、次の
+`requestAnimationFrame`の直前までディスパッチを遅らせます。
+
 <figure>
   <img src="/web/updates/images/inside-browser/part4/coalescedevents.png" alt="coalesced events">
   <figcaption>
-    図8: Same timeline as before but event being coalesced and delayed  
+    図8: 以前と同じタイムラインですが、イベントが合体し遅延しています
   </figcaption>
 </figure>
 
-Any discrete events like `keydown`, `keyup`, `mouseup`, `mousedown`, `touchstart`, and `touchend` 
-are dispatched immediately. 
+`keydown`、`keyup`、`mouseup`、`mousedown`、`touchstart`、および`touchend`のような個別のイ
+ベントは直ちに送出されます。
 
-## Use `getCoalescedEvents` to get intra-frame events
+## フレーム内イベントを取得するには `getCoalescedEvents`を使用してください
 
-For most web applications, coalesced events should be enough to provide a good user experience. 
-However, if you are building things like drawing application and putting a path based on 
-`touchmove` coordinates, you may lose in-between coordinates to draw a smooth line. In that case, 
-you can use the `getCoalescedEvents` method in the pointer event to get information about those 
-coalesced events.
+ほとんどのWebアプリケーションでは、合体したイベントで十分なユーザーエクスペリエンスを提供
+できます。しかし、描画アプリケーションや `touchmove`座標に基づいてパスを配置するようなもの
+を作成している場合は、中間の座標を失って滑らかな線を描くことができます。その場合、ポインタ
+イベントで `getCoalescedEvents`メソッドを使ってそれらの合体したイベントに関する情報を取得
+することができます。
 
 <figure>
   <img src="/web/updates/images/inside-browser/part4/getCoalescedEvents.png"
        alt="getCoalescedEvents">
   <figcaption>
-    図9: Smooth touch gesture path on the left, coalesced limited path on the right   
+    図9: 左側に滑らかなタッチジェスチャーパス、右側に合体した制限パス
   </figcaption>
 </figure>
 
@@ -234,51 +232,40 @@ window.addEventListener('pointermove', event => {
 });
 ```
 
-## Next steps
+## 次のステップ
 
-In this series, we've covered inner workings of a web browser. If you have never thought about why 
-DevTools recommends adding `{passive: true}` on your event handler or why you might write `async` 
-attribute in your script tag, I hope this series shed some light on why a browser needs those 
-information to provide faster and smoother web experience. 
+このシリーズでは、Webブラウザの内部動作について説明しました。 DevToolsがイベントハンドラに
+`{passive：true}`を追加することを推奨する理由やスクリプトタグに `async`属性を記述する理由
+について考えたことがないのであれば、このシリーズでブラウザがそれらの情報を必要とする理由に
+ついて説明してください。より速くより滑らかなウェブ体験を提供します。
 
-### Use Lighthouse
+### Lighthouseを使用する
 
-If you want to make your code be nice to the browser but have no idea where to start, 
-[Lighthouse](/web/tools/lighthouse/) is a tool that runs audit of any website and gives you a 
-report on what's being done right and what needs improvement. Reading through the list of audits 
-also gives you an idea of what kind of things a browser cares about. 
+あなたのコードをブラウザにとって見やすくしたいけれどどこから始めるべきかわからないようにし
+たいのなら、 `Lighthouse`はあらゆるウェブサイトの監査を実行してあなたに正しいことと改善が
+必要なことを報告するツールです。監査リストを読むことで、ブラウザがどのようなことに関心を持っ
+ているのかということもわかります。
 
-### Learn how to measure performance
+### パフォーマンスを測定する方法を学ぶには
 
-Performance tweaks may vary for different sites, so it is crucial that you measure the performance 
-of your site and decide what fits the best for your site. Chrome DevTools team has few tutorials on 
-[how to measure your site's performance](/web/tools/chrome-devtools/speed/get-started).
+掲載結果の調整はサイトによって異なる可能性があるため、サイトの掲載結果を測定し、そのサイトに最適な内容を判断することが重要です。 Chrome DevToolsチームには、[サイトのパフォーマンスを測定する方法](/web/tools/chrome-devtools/speed/get-started)に関するチュートリアルはほとんどありません。
 
-### Add Feature Policy to your site
+### サイトに機能ポリシーを追加する
 
-If you want to take an extra step, [Feature Policy](/web/updates/2018/06/feature-policy) is a new 
-web platform feature that can be a guardrail for you when you are building your project. Turning on 
-feature policy guarantees the certain behavior of your app and prevents you from making mistakes. 
-For example, If you want to ensure your app will never block the parsing, you can run your app on 
-synchronous scripts policy. When `sync-script: 'none'` is enabled, parser-blocking JavaScript will 
-be prevented from executing. This prevents any of your code from blocking the parser, and the 
-browser doesn't need to worry about pausing the parser. 
+特別な一歩を踏み出したいのなら、 [Feature Policy](/web/updates/2018/06/feature-policy)はあなたがあなたのプロジェクトを構築しているときあなたのためのガードレールになることができる新しいウェブプラットフォーム機能です。機能ポリシーを有効にすると、アプリの特定の動作が保証され、間違いを防ぐことができます。たとえば、アプリが解析をブロックしないようにするには、同期スクリプトポリシーでアプリを実行します。 `sync-script:`  `none`が有効になっていると、パーサーブロッキングJavaScriptは実行されません。これにより、コードがパーサーをブロックするのを防ぐことができ、ブラウザーはパーサーを一時停止することを心配する必要がありません。
 
-## Wrap up
+## 最後に
 
 <figure class="attempt-right">
-  <img src="/web/updates/images/inside-browser/part4/thanks.png" alt="thank you">
+  <img src="/web/updates/images/inside-browser/part4/thanks.png" alt="ありがとうございました">
 </figure>
 
-When I started building websites, I almost only cared about how I would write my code and what 
-would help me be more productive. Those things are important, but we should also think about how 
-browser takes the code we write. Modern browsers have been and continue to invest in ways to 
-provide a better web experience for users. Being nice to the browser by organizing our code, 
-in turn, improves your user experience. I hope you join me in the quest to be nice to the browsers!
+私がウェブサイトを作り始めたとき、私は自分のコードを書く方法と私がより生産的になるために何が役立つかについてほとんど気にしていました。これらのことは重要ですが、私たちはブラウザが私たちが書いたコードをどのように扱うかについても考えるべきです。最近のブラウザは、より良いWeb体験をユーザーに提供する方法に投資し続けてきました。私たちのコードを整理することでブラウザに親切になれば、今度はユーザーエクスペリエンスが向上します。私はあなたがブラウザに親切になるための探求に参加してくれることを願っています！
+
 <div class="clearfix"></div>
 
-Huge thank you to everyone who reviewed early drafts of this series, including (but not limited 
-to): [Alex Russell](https://twitter.com/slightlylate), 
+このシリーズの初期のドラフトをレビューしてくれたすべての人に、ありがとうございます。:
+[Alex Russell](https://twitter.com/slightlylate), 
 [Paul Irish](https://twitter.com/paul_irish), 
 [Meggin Kearney](https://twitter.com/MegginKearney), 
 [Eric Bidelman](https://twitter.com/ebidel), 
@@ -286,13 +273,12 @@ to): [Alex Russell](https://twitter.com/slightlylate),
 [Addy Osmani](https://twitter.com/addyosmani), 
 [Kinuko Yasuda](https://twitter.com/kinu), 
 [Nasko Oskov](https://twitter.com/nasko), 
-and Charlie Reis.
+と Charlie Reis.
 
-Did you enjoy the this series? If you have any questions or suggestions for the future post, 
-I'd love to hear from you in the comment section below or [@kosamari](https://twitter.com/kosamari) 
-on Twitter.
+このブログ連載を楽しんでいましたか？今後の投稿について質問や提案がある場合は、下記のコメン
+ト欄またはTwitterの「@ kosamari」でご連絡ください。
 
-## Feedback {: .hide-from-toc }
+## フィードバック {: .hide-from-toc }
 
 {% include "web/_shared/helpful.html" %}
 
