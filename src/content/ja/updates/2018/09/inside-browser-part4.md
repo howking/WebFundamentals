@@ -1,11 +1,11 @@
 project_path: /web/_project.yaml
 book_path: /web/updates/_book.yaml
-description: コンポサイトスレッドによる入力イベント処理
+description: コンポジットスレッドによる入力イベント処理
 
 {# wf_published_on: 2018-09-21 #}
 {# wf_updated_on: 2019-01-14 #}
 {# wf_featured_image: /web/updates/images/inside-browser/cover.png #}
-{# wf_featured_snippet: この計4回のブログ連載の最後の部分では、ユーザー入力が発生した時にどのようにコンサイトが円滑なインタラクションを可能にしているか調べます #}
+{# wf_featured_snippet: この計4回のブログ連載の最後の部分では、ユーザー入力が発生した時にどのようにコンポジットが円滑なインタラクションを可能にしているか調べます #}
 {# wf_blink_components: N/A #}
 
 <style>
@@ -18,26 +18,30 @@ description: コンポサイトスレッドによる入力イベント処理
 
 {% include "web/_shared/contributors/kosamari.html" %}
 
-## インプットがコンポサイトにくるまで
+## 入力がコンポジットにくるまで
 
-これはChromeの内部の仕組みを見ていく計4回のブログ連載の最後で、Webサイトを表示するためのコードの処理方法を調査します。前回の記事では、[レンダリング・プロセス](/web/updates/2018/09/inside-browser-part3)を紹介し、コンポサイトについて調べました。この記事では、ユーザー入力が発生したときにコンポサイトが円滑なインタラクションを可能にしている様子を説明します。
+これはChromeの内部の仕組みを見ていく計4回のブログ連載の最後で、Webサイトを表示するためのコー
+ドの処理方法を調査します。前回の記事では、[レンダリング・プロセス](/web/updates/2018/09/inside-browser-part3)
+を紹介し、コンポジットについて調べました。この記事では、ユーザー入力が発生したときにコンポ
+サイトが円滑なインタラクションを可能にしている様子を説明します。
 
-## Input events from the browser's point of view
+## ブラウザから見た入力イベント
 
-When you hear "input events" you might only think of a typing in textbox or mouse click, but from 
-the browser's point of view, input means any gesture from the user. Mouse wheel scroll is an input 
-event and touch or mouse over is also an input event. 
+「入力イベント」といえば、テキストボックスまたはマウスクリックで入力することだと思われるか
+もしれませんが、ブラウザからは、入力とはユーザーからのジェスチャーを意味します。マウスホイー
+ルのスクロールは入力イベントであり、タッチまたはマウスオーバーも入力イベントです。
 
-When user gesture like touch on a screen occurs, the browser process is the one that receives the 
-gesture at first. However, the browser process is only aware of where that gesture occurred since 
-content inside of a tab is handled by the renderer process. So the browser process sends the event 
-type (like `touchstart`) and its coordinates to the renderer process. Renderer process handles the 
-event appropriately by finding the event target and running event listeners that are attached.
+画面へのタッチなどのユーザー操作が発生すると、ブラウザプロセスは最初にジェスチャーとして受
+け取ります。ただし、ブラウザプロセスは、タブ内のコンテンツがレンダラープロセスによって処理
+されているため、そのジェスチャーが発生した場所を認識するだけです。そのため、ブラウザプロセ
+スはイベントタイプ(`touchstart`など)とその座標をレンダラープロセスに送ります。レンダラープ
+ロセスは、イベントターゲットを検索し、付随しているイベントリスナーを実行することによって、
+イベントを適切に処理します。
 
 <figure>
   <img src="/web/updates/images/inside-browser/part4/input.png" alt="input event">
   <figcaption>
-    Figure 1: Input event routed through the browser process to the renderer process
+    図1: Input event routed through the browser process to the renderer process
   </figcaption>
 </figure>
 
@@ -50,7 +54,7 @@ event appropriately by finding the event target and running event listeners that
     </video>
   </a>
   <figcaption>
-    Figure 2: Viewport hovering over page layers
+    図2: Viewport hovering over page layers
   </figcaption>
 </figure>
 
@@ -75,7 +79,7 @@ compositor thread carries on compositing new frame without waiting for the main 
   <img src="/web/updates/images/inside-browser/part4/nfsr1.png"
        alt="limited non fast scrollable region">
   <figcaption>
-    Figure 3: Diagram of described input to the non-fast scrollable region
+    図3: Diagram of described input to the non-fast scrollable region
   </figcaption>
 </figure>
 
@@ -104,7 +108,7 @@ smooth scrolling ability of the compositor is defeated.
   <img src="/web/updates/images/inside-browser/part4/nfsr2.png"
        alt="full page non fast scrollable region">
   <figcaption>
-    Figure 4: Diagram of described input to the non-fast scrollable region covering an entire page
+    図4: Diagram of described input to the non-fast scrollable region covering an entire page
   </figcaption>
 </figure>
 
@@ -125,7 +129,7 @@ document.body.addEventListener('touchstart', event => {
 <figure class="attempt-right">
   <img src="/web/updates/images/inside-browser/part4/scroll.png" alt="page scroll">
   <figcaption>
-    Figure 5: A web page with part of the page fixed to horizontal scroll
+    図5: A web page with part of the page fixed to horizontal scroll
   </figcaption>
 </figure>
 
@@ -161,7 +165,7 @@ Alternatively, you may use CSS rule like `touch-action` to completely eliminate 
 <figure class="attempt-right">
   <img src="/web/updates/images/inside-browser/part4/hittest.png" alt="hit test">
   <figcaption>
-    Figure 6: The main thread looking at the paint records asking what's drawn on x.y point 
+    図6: The main thread looking at the paint records asking what's drawn on x.y point 
   </figcaption>
 </figure>
 
@@ -185,7 +189,7 @@ screen can refresh.
 <figure>
   <img src="/web/updates/images/inside-browser/part4/rawevents.png" alt="unfiltered events">
   <figcaption>
-    Figure 7: Events flooding the frame timeline causing page jank  
+    図7: Events flooding the frame timeline causing page jank  
   </figcaption>
 </figure>
 
@@ -196,7 +200,7 @@ right before the next `requestAnimationFrame`.
 <figure>
   <img src="/web/updates/images/inside-browser/part4/coalescedevents.png" alt="coalesced events">
   <figcaption>
-    Figure 8: Same timeline as before but event being coalesced and delayed  
+    図8: Same timeline as before but event being coalesced and delayed  
   </figcaption>
 </figure>
 
@@ -215,7 +219,7 @@ coalesced events.
   <img src="/web/updates/images/inside-browser/part4/getCoalescedEvents.png"
        alt="getCoalescedEvents">
   <figcaption>
-    Figure 9: Smooth touch gesture path on the left, coalesced limited path on the right   
+    図9: Smooth touch gesture path on the left, coalesced limited path on the right   
   </figcaption>
 </figure>
 
