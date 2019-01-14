@@ -3,7 +3,7 @@ book_path: /web/updates/_book.yaml
 description: ブラウザレンダリングエンジンの内部動作
 
 {# wf_published_on: 2018-09-20 #}
-{# wf_updated_on: 2019-01-11 #}
+{# wf_updated_on: 2019-01-14 #}
 {# wf_featured_image: /web/updates/images/inside-browser/cover.png #}
 {# wf_featured_snippet: ブラウザがページデータを受信したら、レンダラプロセス内でページを表示するために何が起こりますか？ #}
 {# wf_blink_components: N/A #}
@@ -37,7 +37,7 @@ description: ブラウザレンダリングエンジンの内部動作
 レンダラープロセスは、タブの内部で発生するすべてのことを担当します。
 レンダラープロセスでは、メインスレッドがユーザに送信するコードの大部分を処理します。
 Webワーカーまたはサービスワーカーを使用している場合、JavaScriptの一部がワーカースレッド
-によって処理されることがあります。Compositorスレッドとラスタースレッドもレンダラー
+によって処理されることがあります。コンポジットスレッドとラスタースレッドもレンダラー
 プロセス内で実行され、ページを効率的かつ円滑にレンダリングします。
 
 レンダラープロセスの中心的な仕事は、HTML、CSS、およびJavaScriptをユーザーが対話
@@ -46,7 +46,8 @@ Webワーカーまたはサービスワーカーを使用している場合、Ja
 <figure>
   <img src="/web/updates/images/inside-browser/part3/renderer.png" alt="レンダラープロセス">
   <figcaption>
-    図1: メインスレッド、ワーカースレッド、コンポジタースレッド、ラスタースレッドを内部に持つレンダラープロセス
+    図1: メインスレッド、ワーカースレッド、コンポジタースレッド、ラスタースレッドを内部に
+        持つレンダラープロセス
   </figcaption>
 </figure>
 
@@ -162,7 +163,8 @@ none`が適用されている場合、その要素はレイアウトツリーの
 <figure>
   <img src="/web/updates/images/inside-browser/part3/layout.png" alt="レイアウト">
   <figcaption>
-    図5: メインスレッドは計算スタイルを使ってDOMツリーの上を通り、レイアウトツリーを生成します
+    図5: メインスレッドは計算スタイルを使ってDOMツリーの上を通り、レイアウトツリー
+        を生成します
   </figcaption>
 </figure>
 
@@ -211,7 +213,8 @@ DOM、スタイル、およびレイアウトを持つだけでは、ページ�
 <figure>
   <img src="/web/updates/images/inside-browser/part3/zindex.png" alt="z-indexの失敗">
   <figcaption>
-    図8: HTML要素のマークアップの順序でページ要素が表示され、z-indexが考慮されていなかったために誤ったレンダリング画像が表示される
+    図8: HTML要素のマークアップの順序でページ要素が表示され、z-indexが考慮されていなかった
+        ために誤ったレンダリング画像が表示される
   </figcaption>
 </figure>
 
@@ -285,7 +288,7 @@ DOM、スタイル、およびレイアウトを持つだけでは、ページ�
   </figcaption>
 </figure>
 
-## コンポサイティング
+## コンポジティング
 
 ### どのようにしてページを描きますか？
 
@@ -304,127 +307,140 @@ DOM、スタイル、およびレイアウトを持つだけでは、ページ�
 知ることにより、ブラウザはどうやってページを描画するのでしょうか。この情報を画面
 上でピクセルに変換することをラスタライズと呼びます。
 
-おそらくこれを処理する単純な方法は、ビューポートの内側にパーツをラスタ化することです。ユーザーがページをスクロールする場合は、ラスタフレームを移動し、さらにラスタすることによって欠けている部分を埋めます。これがChromeが最初のリリース時にラスタライズを処理した方法です。しかし、最近のブラウザはコンポサイティングと呼ばれるより洗練されたプロセスを実行します。
+おそらくこれを処理する単純な方法は、ビューポートの内側にパーツをラスタ化すること
+です。ユーザーがページをスクロールする場合は、ラスタフレームを移動し、さらにラス
+タすることによって欠けている部分を埋めます。これがChromeが最初のリリース時にラス
+タライズを処理した方法です。しかし、最近のブラウザはコンポジティングと呼ばれるよ
+り洗練されたプロセスを実行します。
 
 <div class="clearfix"></div>
 
-### コンポサイティングとは
+### コンポジティングとは
 
 <figure class="attempt-right">
   <a href="/web/updates/images/inside-browser/part3/composit.mp4">
     <video src="/web/updates/images/inside-browser/part3/composit.mp4"
-           autoplay loop muted playsinline controls alt="コンポサイティング">
+           autoplay loop muted playsinline controls alt="コンポジティング">
     </video>
   </a>
   <figcaption>
-    図15: コンポサイティングのアニメーション
+    図15: コンポジティングのアニメーション
   </figcaption>
 </figure>
 
-Compositing is a technique to separate parts of a page into layers, rasterize them separately, and 
-composite as a page in a separate thread called compositor thread. If scroll happens, since layers 
-are already rasterized, all it has to do is to composite a new frame. Animation can be achieved in 
-the same way by moving layers and composite a new frame. 
+コンポジティングとは、ページの一部をレイヤーに分割し、それらを別々にラスタライズ
+し、ページとしてコンポジットスレッドと呼ばれる別のスレッドに合成する技術です。ス
+クロールが発生した場合、レイヤーは既にラスタライズされているので、新しいフレーム
+を合成するだけです。アニメーションは、レイヤーを移動して新しいフレームを合成する
+という同じ方法で実現されています。
 
-You can see how your website is divided into layers in DevTools using 
-[Layers panel](https://blog.logrocket.com/eliminate-content-repaints-with-the-new-layers-panel-in-chrome-e2c306d4d752?gi=cd6271834cea).
+あなたはDevToolsの[レイヤーパネル](https://blog.logrocket.com/eliminate-content-repaints-with-the-new-layers-panel-in-chrome-e2c306d4d752?gi=cd6271834cea)
+を使ってウェブサイトがどのようにレイヤーに分割されているかを見ることができます 。
 
 <div class="clearfix"></div>
 
-### Dividing into layers
-In order to find out which elements need to be in which layers, the main thread walks through the 
-layout tree to create the layer tree (this part is called "Update Layer Tree" in the DevTools 
-performance panel). If certain parts of a page that should be separate layer (like slide-in side 
-menu) is not getting one, then you can hint to the browser by using `will-change` attribute in CSS. 
+### レイヤーに分ける
 
+どの要素がどのレイヤにある必要があるかを見つけるために、メインスレッドはレイアウ
+トツリーをたどってレイヤツリーを作成します（この部分はDevToolsパフォーマンスパネ
+ルでは「Update Layer Tree」と呼ばれます）。別のレイヤーにする必要があるページの
+特定の部分（スライドインサイドメニューなど）がはっきりしない場合は、CSSの
+`will-change`属性を使用してブラウザにヒントを与えることができます。
 
 <figure>
-  <img src="/web/updates/images/inside-browser/part3/layer.png" alt="layer tree">
+  <img src="/web/updates/images/inside-browser/part3/layer.png" alt="レイヤーツリー">
   <figcaption>
-    図16: The main thread walking through layout tree producing layer tree
+    図16: レイアウトツリーをたどるメインスレッド
   </figcaption>
 </figure>
 
-You might be tempted to give layers to every element, but compositing across an excess number of 
-layers could result in slower operation than rasterizing small parts of a page every frame, so it 
-is crucial that you measure rendering performance of your application. For more about on topic, see 
-[Stick to Compositor-Only Properties and Manage Layer Count](/web/fundamentals/performance/rendering/stick-to-compositor-only-properties-and-manage-layer-count).
+すべての要素にレイヤーを付けたいと思うかもしれませんが、余分な数のレイヤーにまた
+がって合成すると、フレームごとにページの小さい部分をラスタライズするよりも操作が
+遅くなる可能性があるため、アプリケーションのレンダリングパフォーマンスを測定する
+ことが重要です。トピックの詳細については、[合成用プロパティにこだわり、レイヤー
+を管理す
+る
+](/web/fundamentals/performance/rendering/stick-to-compositor-only-properties-and-manage-layer-count)
+を参照してください。
 
-### Raster and composite off of the main thread
+### メインスレッドのラスタとコンポジット
 
-Once the layer tree is created and paint orders are determined, the main thread commits that 
-information to the compositor thread. The compositor thread then rasterizes each layer. A layer 
-could be large like the entire length of a page, so the compositor thread divides them into tiles 
-and sends each tile off to raster threads. Raster threads rasterize each tile and store them in GPU 
-memory. 
+レイヤツリーが作成されてペイントの順序が決定されると、メインスレッドはその情報を
+コンポジットスレッドにコミットします。次にコンポジットスレッドは各レイヤーをラス
+タライズします。レイヤーはページ全体の長さのように大きくなることがあるため、合成
+スレッドはそれらをタイルに分割し、各タイルをラスタスレッドに送ります。ラスタスレッ
+ドは各タイルをラスタライズしてGPUメモリに保存します。
 
 <figure>
-  <img src="/web/updates/images/inside-browser/part3/raster.png" alt="raster">
+  <img src="/web/updates/images/inside-browser/part3/raster.png" alt="ラスター">
   <figcaption>
-    図17: Raster threads creating the bitmap of tiles and sending to GPU 
+    図17: タイルのビットマップを作成してGPUに送信するラスタースレッド
   </figcaption>
 </figure>
 
-The compositor thread can prioritize different aster threads so that things within the viewport 
-(or nearby) can be rastered first. A layer also has multiple tilings for different resolutions to 
-handle things like zoom-in action.
+コンポジットスレッドは、ビューポート内（または近く）のものが最初にラスタ処理され
+るように、異なるラスタスレッドに優先順位を付けることができます。レイヤーには、ズー
+ムインアクションのようなものを処理するために、さまざまな解像度に対して複数の傾斜
+をつけることもあります。
 
-Once tiles are rastered, compositor thread gathers tile information called **draw quads** to create 
-a **compositor frame**. 
+タイルがラスタ化されると、コンポジットスレッドは**描画ガード**と呼ばれるタイル情
+報を収集した**コンポジットフレーム**を作成します。
 
 <table class="responsive">
   <tr>
-    <td>Draw quads</td>
+    <td>描画ガード</td>
     <td>
-      Contains information such as the tile's location in memory and where in the page to draw the 
-      tile taking in consideration of the page compositing.
+      ページの合成を処理するのに、メモリ内のタイルの位置やタイルを描画するページ
+      内の位置などの情報が含まれています。
     </td>
   </tr>
   <tr>
-    <td>Compositor frame</td>
-    <td>A collection of draw quads that represents a frame of a page.</td>
+    <td>コンポジットフレーム</td>
+    <td>ページのフレームを表す描画ガードのコレクション。</td>
   </tr>
 </table>
 
-A compositor frame is then submitted to the browser process via IPC. At this point, another 
-compositor frame could be added from UI thread for the browser UI change or from other renderer 
-processes for extensions. These compositor frames are sent to the GPU to display it on a screen. 
-If a scroll event comes in, compositor thread creates another compositor frame to be sent to the 
-GPU.
+次に、コンポジットフレームがIPCを介してブラウザプロセスに送信されます。この時点
+で、ブラウザのUIを変更するためのUIスレッドや拡張機能のための他のレンダラープロセ
+スから別のコンポジットフレームが追加されます。これらのコンポジットフレームはGPU
+に送信されて画面に表示されます。スクロールイベントが発生した場合、コンポジットス
+レッドはGPUに送信される別のコンポジットフレームを作成します。
 
 <figure>
   <img src="/web/updates/images/inside-browser/part3/composit.png" alt="composit">
   <figcaption>
-    図18: Compositor thread creating compositing frame. Fame is sent to the browser process 
-    then to GPU
+    図18: コンポジットフレームを作成するコンポジットスレッド。 フレームは
+          ブラウザプロセスに送られ、次にGPUに送られます。
   </figcaption>
 </figure>
 
-The benefit of compositing is that it is done without involving the main thread. Compositor thread 
-does not need to wait on style calculation or JavaScript execution. This is why 
-[compositing only animations](https://www.html5rocks.com/en/tutorials/speed/high-performance-animations/) 
-are considered the best for smooth performance. If layout or paint needs to be calculated again 
-then the main thread has to be involved.
+コンポジティングの利点は、メインスレッドを使用せずに行われることです。 コンポジッ
+トスレッドは、スタイルの計算やJavaScriptの実行を待つ必要はありません。これが、
+「アニメーションのみを合成する」ことがスムーズなパフォーマンスのために最善と考え
+られる理由です。レイアウトやペイントを再計算する必要がある場合は、メインスレッド
+を使用する必要があります。
 
-## Wrap Up
-In this post, we looked at rendering pipeline from parsing to compositing. Hopefully, you are now 
-empowered to read more about performance optimization of a website.
+## さいごに
 
-In the next and last post of this series, we'll look at the compositor thread in more details and 
-see what happens when user input like `mouse move` and `click` comes in.
+この記事では、構文解析から合成までのレンダリング・パイプラインについて説明しまし
+た。あなたがウェブサイトのパフォーマンスの最適化についてもっと詳しく知れるよう願っ
+ています。
 
-Did you enjoy the post? If you have any questions or suggestions for the future post, I'd love to 
-hear from you in the comment section below or [@kosamari](https://twitter.com/kosamari) on Twitter.
+この連載の次回、最後の投稿では、コンポジットスレッドをもっと詳しく調べ、「マウス
+移動」や「クリック」などのユーザー入力が入ったときに何が起こるかを確認します。
+
+この記事は楽しめましたか？今後の投稿について質問や提案がある場合は、下記のコメン
+ト欄またはTwitterの[@kosamari](https://twitter.com/kosamari)までご連絡ください。
 
 <a class="button button-primary gc-analytics-event attempt-right"
    href="/web/updates/2018/09/inside-browser-part4"
    data-category="InsideBrowser" data-label="Part3 / Next">
-  Next: Input is coming to the compositor
+  次へ: 入力がコンポジットにくるまで
 </a>
 
 <div class="clearfix"></div>
 
-## Feedback {: .hide-from-toc }
+## フィードバック {: .hide-from-toc }
 
 {% include "web/_shared/helpful.html" %}
 
