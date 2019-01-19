@@ -3,7 +3,7 @@ book_path: /web/updates/_book.yaml
 description: コンポジットスレッドによる入力イベント処理
 
 {# wf_published_on: 2018-09-21 #}
-{# wf_updated_on: 2019-01-18 #}
+{# wf_updated_on: 2019-01-19 #}
 {# wf_featured_image: /web/updates/images/inside-browser/cover.png #}
 {# wf_featured_snippet: この計4回のブログ連載の最後の部分では、ユーザー入力が発生した時にどのようにコンポジットが円滑なインタラクションを可能にしているか調べます #}
 {# wf_blink_components: N/A #}
@@ -85,7 +85,9 @@ JavaScriptの実行はメインスレッドの仕事であるため、ページ�
 
 ### イベントハンドラを書くときは注意してください
 
-Web開発における一般的なイベント処理パターンはイベントの委任です。イベントが発生すると、一番上の要素に1つのイベントハンドラをアタッチし、イベントターゲットに基づいてタスクを委任することができます。あなたは下記のようなコードを見たり書いたことがあるかもしれません。
+Web開発における一般的なイベント処理パターンはイベントの委任です。イベントが発生すると、一
+番上の要素に1つのイベントハンドラをアタッチし、イベントターゲットに基づいてタスクを委任す
+ることができます。あなたは下記のようなコードを見たり書いたことがあるかもしれません。
 
 ```javascript
 document.body.addEventListener('touchstart', event => {
@@ -178,8 +180,13 @@ document.body.addEventListener('pointermove', event => {
 
 ## メインスレッドへのイベント発行の最小化
 
-前回の記事では、私たちの典型的なディスプレイが1秒間に60回画面を更新する方法と、スムーズなアニメーションのためにどのように歩調を合わせる必要があるかについて説明しました。入力の場合、一般的なタッチスクリーンデバイスは1秒間に60〜120回タッチイベントを配信し、一般的なマウスは1秒間に100回イベントを配信します。入力イベントは、画面が更新できるよりも忠実度が高いです。
-`touchmove`のような継続的なイベントが1秒間に120回メインスレッドに送信されると、画面のリフレッシュ速度が遅くなるのに比べて、大量のヒットテストやJavaScriptの実行が引き起こされる可能性があります。
+前回の記事では、私たちの典型的なディスプレイが1秒間に60回画面を更新する方法と、スムーズな
+アニメーションのためにどのように歩調を合わせる必要があるかについて説明しました。入力の場合、
+一般的なタッチスクリーンデバイスは1秒間に60〜120回タッチイベントを配信し、一般的なマウスは
+1秒間に100回イベントを配信します。入力イベントは、画面が更新できるよりも忠実度が高いです。
+`touchmove`のような継続的なイベントが1秒間に120回メインスレッドに送信されると、画面のリフ
+レッシュ速度が遅くなるのに比べて、大量のヒットテストやJavaScriptの実行が引き起こされる可能
+性があります。
 
 <figure>
   <img src="/web/updates/images/inside-browser/part4/rawevents.png" alt="unfiltered events">
@@ -187,9 +194,6 @@ document.body.addEventListener('pointermove', event => {
     図7: フレームタイムラインをあふれさせるイベントによりページが乱れる
   </figcaption>
 </figure>
-To minimize excessive calls to the main thread, Chrome coalesces continuous events (such as 
-`wheel`, `mousewheel`, `mousemove`, `pointermove`,  `touchmove` ) and delays dispatching until 
-right before the next `requestAnimationFrame`. 
 
 メインスレッドへの過度の呼び出しを最小限に抑えるために、Chromeは継続的なイベント（`wheel`、
 `mousewheel`、`mousemove`、`pointermove`、`touchmove`など）を統合し、次の
@@ -248,11 +252,20 @@ window.addEventListener('pointermove', event => {
 
 ### パフォーマンスを測定する方法を学ぶには
 
-掲載結果の調整はサイトによって異なる可能性があるため、サイトの掲載結果を測定し、そのサイトに最適な内容を判断することが重要です。 Chrome DevToolsチームには、[サイトのパフォーマンスを測定する方法](/web/tools/chrome-devtools/speed/get-started)に関するチュートリアルはほとんどありません。
+公開されているサイトの調整する方法は、サイトによって異なる可能性があるため、測定し、そのサ
+イトに最適な内容を判断することが重要です。 Chrome DevToolsチームからは、[サイトのパフォー
+マンスを測定する方法](/web/tools/chrome-devtools/speed/get-started)に関するチュートリアル
+を少し提供しています。
 
 ### サイトに機能ポリシーを追加する
 
-特別な一歩を踏み出したいのなら、 [Feature Policy](/web/updates/2018/06/feature-policy)はあなたがあなたのプロジェクトを構築しているときあなたのためのガードレールになることができる新しいウェブプラットフォーム機能です。機能ポリシーを有効にすると、アプリの特定の動作が保証され、間違いを防ぐことができます。たとえば、アプリが解析をブロックしないようにするには、同期スクリプトポリシーでアプリを実行します。 `sync-script:`  `none`が有効になっていると、パーサーブロッキングJavaScriptは実行されません。これにより、コードがパーサーをブロックするのを防ぐことができ、ブラウザーはパーサーを一時停止することを心配する必要がありません。
+特別な一歩を踏み出したいのなら、 [Feature Policy](/web/updates/2018/06/feature-policy)はあ
+なたがプロジェクトを構築しているときガードレールになることができる新しいウェブプラットフォー
+ム機能です。機能ポリシーを有効にすると、アプリの特定の動作が保証され、間違いを防ぐことがで
+きます。たとえば、アプリが解析をブロックしないようにするには、同期スクリプトポリシーでアプ
+リを実行します。 `sync-script: 'none'`が有効になっていると、パーサーブロッキングする
+JavaScriptは実行されません。これにより、コードがパーサーをブロックするのを防ぐことができ、
+ブラウザがパーサーを一時停止することを心配する必要がありません。
 
 ## 最後に
 
@@ -260,11 +273,15 @@ window.addEventListener('pointermove', event => {
   <img src="/web/updates/images/inside-browser/part4/thanks.png" alt="ありがとうございました">
 </figure>
 
-私がウェブサイトを作り始めたとき、私は自分のコードを書く方法と私がより生産的になるために何が役立つかについてほとんど気にしていました。これらのことは重要ですが、私たちはブラウザが私たちが書いたコードをどのように扱うかについても考えるべきです。最近のブラウザは、より良いWeb体験をユーザーに提供する方法に投資し続けてきました。私たちのコードを整理することでブラウザに親切になれば、今度はユーザーエクスペリエンスが向上します。私はあなたがブラウザに親切になるための探求に参加してくれることを願っています！
+私はWebサイトを作り始めたとき、そのコードを書く方法自体と、より効率的に書くにはどうすれば
+よいかしか気にしませんでした。もちろん、それらも重要ですが、ブラウザが書いたコードをどのよ
+うに扱うかについても考えるべきです。モダンブラウザは、より良いWeb体験をユーザーに提供する
+方法を模索し続けています。コードを整理することがブラウザに役立てば、ユーザー経験が向上し
+ます。あなたがブラウザと仲良くなる方法を模索してくれることを願っています！
 
 <div class="clearfix"></div>
 
-このシリーズの初期のドラフトをレビューしてくれたすべての人に、ありがとうございます。:
+この連載の草稿をレビューしてくれたすべての人に、感謝します。
 [Alex Russell](https://twitter.com/slightlylate), 
 [Paul Irish](https://twitter.com/paul_irish), 
 [Meggin Kearney](https://twitter.com/MegginKearney), 
@@ -273,10 +290,10 @@ window.addEventListener('pointermove', event => {
 [Addy Osmani](https://twitter.com/addyosmani), 
 [Kinuko Yasuda](https://twitter.com/kinu), 
 [Nasko Oskov](https://twitter.com/nasko), 
-と Charlie Reis.
+Charlie Reis.
 
-このブログ連載を楽しんでいましたか？今後の投稿について質問や提案がある場合は、下記のコメン
-ト欄またはTwitterの「@ kosamari」でご連絡ください。
+この記事は楽しめましたか？今後の投稿について質問や提案がある場合は、下記のコメン
+ト欄またはTwitterの[@kosamari](https://twitter.com/kosamari)までご連絡ください。
 
 ## フィードバック {: .hide-from-toc }
 
